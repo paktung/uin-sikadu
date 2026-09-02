@@ -1,5 +1,40 @@
 # SIKADU
 
+## PENTING - baca dulu sebelum deploy ulang
+
+1. **Hapus SEMUA file lama di Vercel, upload SEMUA isi zip ini sekaligus.**
+   Beberapa file saling `import` berdasarkan nama persis — campur versi
+   lama+baru akan error.
+2. **Setelah upload, hard refresh browser**: `Ctrl+Shift+R` (Windows/Linux)
+   atau `Cmd+Shift+R` (Mac). Semua file JS lokal sekarang punya
+   `?v=3` di akhir nama file supaya browser/CDN dipaksa ambil versi
+   terbaru, tapi hard refresh tetap disarankan untuk jaga-jaga.
+3. **Background watermark butuh file gambar** yang belum ada di paket ini:
+   simpan gambar logo UIN Gus Dur (disarankan PNG transparan, bukan JPG,
+   supaya latar belakangnya benar-benar transparan) di:
+   `assets/uin-gusdur-01.jpg`
+   Kalau file ini belum ada di server, background-nya tidak tampil (tidak
+   error, cuma tidak kelihatan) — halaman tetap jalan normal.
+4. **Kalau halaman masih macet di "Memuat..."** setelah upload penuh +
+   hard refresh: sekarang akan muncul **banner merah besar di paling atas
+   halaman** yang menjelaskan persis apa yang gagal (bukan diam saja
+   seperti sebelumnya). Screenshot banner itu kalau masih terjadi.
+
+## Fitur baru di ronde ini
+
+- **Import Excel untuk Mahasiswa** (menu Data Mahasiswa → tombol "Unduh
+  Template Excel" dan "Import dari Excel"). Alur: unduh template → isi
+  kolom `username, password, nim, nama, jenisKelamin, noWa, tempatLahir,
+  tanggalLahir, email, alamat` → upload lagi → sistem menampilkan pratinjau
+  (baris mana yang valid/dilewati beserta alasannya) → klik "Mulai Import"
+  → akun Firebase Auth + dokumen Firestore dibuat otomatis satu per satu,
+  dengan status live per baris (Berhasil/Gagal + alasan).
+- **Background watermark** logo di semua halaman (lihat poin 3 di atas).
+- **Logo di halaman login diperbesar** sedikit.
+- **Banner error yang jelas** kalau sesi/Firestore gagal dimuat (lihat poin 4).
+
+
+
 Sistem Informasi Akademik & Pembelajaran — dibangun di atas Firebase
 (Authentication + Firestore). Struktur folder mengikuti tiga peran:
 

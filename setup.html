@@ -15,7 +15,7 @@
     padding: 40px 35px;
     box-shadow: 0 25px 70px rgba(0,0,0,.35);
   }
-  .login-card .logo { width: 32px; height: 32px; margin: 0 auto 10px; }
+  .login-card .logo { width: 56px; height: 56px; margin: 0 auto 14px; }
   .login-card h1 { text-align: center; font-size: 25px; margin-bottom: 8px; }
   .login-card .subtitle { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
   .login-card .button-primary { width: 100%; font-size: 16px; margin-top: 4px; }
@@ -60,7 +60,7 @@
 </div>
 
 <script type="module">
-  import { auth, db } from "./assets/firebase-config.js";
+  import { auth, db } from "./assets/firebase-config.js?v=3";
   import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { doc, setDoc, serverTimestamp, collection, getCountFromServer } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 

@@ -24,7 +24,7 @@
     animation: cardIn .5s ease;
   }
   @keyframes cardIn { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
-  .login-card .logo { width: 32px; height: 32px; margin: 0 auto 10px; }
+  .login-card .logo { width: 56px; height: 56px; margin: 0 auto 14px; }
   .login-card h1 { text-align: center; font-size: 27px; margin-bottom: 8px; }
   .login-card .subtitle { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
   .login-card .button-primary { width: 100%; font-size: 16px; margin-top: 4px; }
@@ -101,7 +101,7 @@
 </div>
 
 <script type="module">
-  import { auth, db, usernameToEmail, normalizeLevel, goToRoleHome } from "./assets/firebase-config.js";
+  import { auth, db, usernameToEmail, normalizeLevel, goToRoleHome } from "./assets/firebase-config.js?v=3";
   import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
