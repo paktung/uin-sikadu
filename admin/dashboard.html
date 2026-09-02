@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Admin - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=5">
+<link rel="stylesheet" href="../assets/style.css?v=6">
 </head>
 <body>
 
@@ -20,16 +20,16 @@
       </div>
     </div>
 
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">A</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Administrator</div>
+      <div class="underline"></div>
+    </div>
+
     <nav class="sidebar-nav" id="sidebarNav"></nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user-row">
-        <div class="avatar" id="sidebarAvatar">A</div>
-        <div class="sidebar-user">
-          <div class="name-line" id="sidebarUser">Memuat...</div>
-          <div class="role-line" style="color:rgba(255,255,255,.5);">Administrator</div>
-        </div>
-      </div>
       <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
     </div>
   </aside>
@@ -45,12 +45,15 @@
 
     <div id="pageMessage" class="message"></div>
 
-    <div class="info-card-highlight">
-      <div class="stat-icon c1">📅</div>
-      <div>
-        <div class="title">Tahun Akademik Aktif</div>
-        <div class="value" id="tahunAktifLabel">Memuat...</div>
+    <div class="dash-top-grid">
+      <div class="info-card-highlight" style="margin-bottom:0; height:100%;">
+        <div class="stat-icon c1">📅</div>
+        <div>
+          <div class="title">Tahun Akademik Aktif</div>
+          <div class="value" id="tahunAktifLabel">Memuat...</div>
+        </div>
       </div>
+      <div id="calendarWidget"></div>
     </div>
 
     <div class="stat-grid-elegant">
@@ -98,10 +101,11 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=5";
-  import { db } from "../assets/firebase-config.js?v=5";
-  import { withTimeout } from "../assets/with-timeout.js?v=5";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=6";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=6";
+  import { db } from "../assets/firebase-config.js?v=6";
+  import { withTimeout } from "../assets/with-timeout.js?v=6";
+  import { renderCalendarWidget } from "../assets/calendar-widget.js?v=6";
   import {
     collection, query, where, getCountFromServer, getDocs,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -113,6 +117,7 @@
   }
 
   renderAdminNav("dashboard.html");
+  renderCalendarWidget("calendarWidget");
   const { profile } = await guardPage("admin");
 
   console.log("=== SIKADU ADMIN DASHBOARD ===");
