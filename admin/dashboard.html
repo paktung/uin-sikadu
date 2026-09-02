@@ -80,6 +80,11 @@
 
   const { profile } = await guardPage("admin");
 
+  console.log("=== SIKADU ADMIN DASHBOARD ===");
+  console.log("UID:", sessionStorage.getItem("sikadu_uid"));
+  console.log("Level:", sessionStorage.getItem("sikadu_level"));
+  console.log("Profile:", profile);
+
   document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
   document.getElementById("greeting").textContent = `Halo, ${profile.nama || profile.username}`;
   document.getElementById("logoutButton").addEventListener("click", logout);
