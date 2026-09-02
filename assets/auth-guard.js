@@ -100,7 +100,11 @@ export function guardPage(expectedRole) {
 }
 
 export async function logout() {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error("Gagal sign out (tetap lanjut redirect):", err);
+  }
   sessionStorage.removeItem("sikadu_uid");
   sessionStorage.removeItem("sikadu_username");
   sessionStorage.removeItem("sikadu_nama");

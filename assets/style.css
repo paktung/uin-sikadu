@@ -244,11 +244,12 @@ input:focus, select:focus, textarea:focus {
   margin-top: 16px;
 }
 .sidebar-user { font-size: 13px; color: rgba(255,255,255,.6); margin-bottom: 10px; word-break: break-word; }
+.sidebar-logout { width: 100%; }
 
 .main {
   flex: 1;
   min-width: 0;
-  padding: 32px 40px;
+  padding: 32px 44px 56px;
 }
 
 .page-header {
@@ -398,16 +399,52 @@ table.data-table {
 
 @media (max-width: 860px) {
   .app-shell { flex-direction: column; }
+
   .sidebar {
     width: 100%;
-    flex-direction: row;
-    align-items: center;
-    padding: 12px 16px;
-    overflow-x: auto;
+    flex-direction: column;
+    padding: 16px 18px 14px;
   }
-  .sidebar-brand { padding: 0 12px 0 0; }
-  .sidebar-nav { flex-direction: row; }
-  .sidebar-footer { display: none; }
-  .main { padding: 24px 18px; }
+
+  .sidebar-brand { padding: 0 0 14px; }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+  }
+  .sidebar-nav a { white-space: nowrap; flex-shrink: 0; }
+
+  /* Nama & tombol Keluar TETAP tampil di HP - sebelumnya hilang total (display:none). */
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  .sidebar-user { margin-bottom: 0; font-size: 12px; }
+  .sidebar-logout { width: auto; flex-shrink: 0; white-space: nowrap; }
+
+  .main { padding: 24px 18px 44px; }
+  .page-header { margin-bottom: 22px; }
+  .card { padding: 20px 18px; }
+  .stat-grid { gap: 12px; }
+  .modal-backdrop { padding: 24px 14px; }
+  .modal { padding: 24px 20px; }
   .form-grid-2 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .sidebar-nav a { padding: 9px 12px; font-size: 13px; }
+  .main { padding: 20px 14px 40px; }
+  .card { padding: 18px 14px; }
+  .stat-card { padding: 16px; }
+  .page-header h1 { font-size: 21px; }
 }
