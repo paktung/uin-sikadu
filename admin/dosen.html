@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Dosen - SIKADU</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">SK</div>
+      <div>
+        <div class="name">SIKADU</div>
+        <div class="role">Panel Admin</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="dosen.html" class="active">Data Dosen</a>
+      <a href="mahasiswa.html">Data Mahasiswa</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <button id="logoutButton" class="button-secondary" style="width:100%">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <h1>Data Dosen</h1>
+        <p>Kelola akun dan profil dosen.</p>
+      </div>
+      <button id="addButton" class="button-primary">+ Tambah Dosen</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <input type="search" id="searchInput" placeholder="Cari nama atau NIDN...">
+        <span class="hint" id="rowCount"></span>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>NIDN</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Bidang Keahlian</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display:none;">
+        Belum ada data dosen. Klik "Tambah Dosen" untuk menambahkan.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: TAMBAH / EDIT DOSEN -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Tambah Dosen</h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+
+    <div id="modalMessage" class="message"></div>
+
+    <form id="dosenForm">
+      <input type="hidden" id="dosenId">
+
+      <div class="form-grid-2">
+        <div class="form-group span-2">
+          <label for="nama">Nama Lengkap</label>
+          <input type="text" id="nama" required>
+        </div>
+
+        <div class="form-group">
+          <label for="nidn">NIDN</label>
+          <input type="text" id="nidn" required>
+        </div>
+
+        <div class="form-group">
+          <label for="username">Username Login</label>
+          <input type="text" id="username" placeholder="mis. sama dengan NIDN" required>
+        </div>
+
+        <div class="form-group span-2" id="passwordGroup">
+          <label for="password">Password Awal</label>
+          <input type="password" id="password" minlength="6" autocomplete="new-password">
+          <p class="hint" id="passwordHint">Minimal 6 karakter. Dosen bisa memakai ini untuk login pertama kali.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email">
+        </div>
+
+        <div class="form-group">
+          <label for="noWa">No. WhatsApp</label>
+          <input type="text" id="noWa">
+        </div>
+
+        <div class="form-group span-2">
+          <label for="bidangKeahlian">Bidang Keahlian</label>
+          <input type="text" id="bidangKeahlian" placeholder="mis. Rekayasa Perangkat Lunak">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js";
+  import { db } from "../assets/firebase-config.js";
+  import { createAuthUser } from "../assets/create-auth-user.js";
+  import {
+    collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  const { profile } = await guardPage("admin");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  // ---------- state ----------
+  let allRows = []; // { uid, dosen, user }
+
+  // ---------- elements ----------
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const rowCount = document.getElementById("rowCount");
+  const searchInput = document.getElementById("searchInput");
+  const pageMessage = document.getElementById("pageMessage");
+
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const dosenForm = document.getElementById("dosenForm");
+  const dosenIdInput = document.getElementById("dosenId");
+  const usernameInput = document.getElementById("username");
+  const passwordGroup = document.getElementById("passwordGroup");
+  const passwordInput = document.getElementById("password");
+  const passwordHint = document.getElementById("passwordHint");
+  const saveButton = document.getElementById("saveButton");
+
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+
+  // ---------- load data ----------
+  async function loadDosen() {
+    tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Memuat data...</td></tr>`;
+
+    const [dosenSnap, usersSnap] = await Promise.all([
+      getDocs(query(collection(db, "dosen"), orderBy("nama"))),
+      getDocs(collection(db, "users")),
+    ]);
+
+    const usersById = {};
+    usersSnap.forEach((d) => { usersById[d.id] = d.data(); });
+
+    allRows = [];
+    dosenSnap.forEach((d) => {
+      allRows.push({ uid: d.id, dosen: d.data(), user: usersById[d.id] || {} });
+    });
+
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = searchInput.value.trim().toLowerCase();
+    const rows = allRows.filter(({ dosen }) => {
+      if (!search) return true;
+      return (dosen.nama || "").toLowerCase().includes(search)
+        || (dosen.nidn || "").toLowerCase().includes(search);
+    });
+
+    rowCount.textContent = `${rows.length} dosen`;
+    emptyState.style.display = rows.length === 0 ? "block" : "none";
+    tableBody.innerHTML = "";
+
+    rows.forEach(({ uid, dosen, user }) => {
+      const tr = document.createElement("tr");
+      const isActive = user.isActive !== false;
+
+      tr.innerHTML = `
+        <td>${escapeHtml(dosen.nama || "-")}</td>
+        <td>${escapeHtml(dosen.nidn || "-")}</td>
+        <td>${escapeHtml(user.username || "-")}</td>
+        <td>${escapeHtml(dosen.email || "-")}</td>
+        <td>${escapeHtml(dosen.bidangKeahlian || "-")}</td>
+        <td><span class="badge ${isActive ? "active" : "inactive"}">${isActive ? "Aktif" : "Nonaktif"}</span></td>
+        <td>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-uid="${uid}">Edit</button>
+            <button class="button-danger" data-action="toggle" data-uid="${uid}">${isActive ? "Nonaktifkan" : "Aktifkan"}</button>
+          </div>
+        </td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  // ---------- row actions ----------
+  tableBody.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    const uid = button.dataset.uid;
+    const row = allRows.find((r) => r.uid === uid);
+    if (!row) return;
+
+    if (button.dataset.action === "edit") {
+      openModal(row);
+    }
+
+    if (button.dataset.action === "toggle") {
+      const currentlyActive = row.user.isActive !== false;
+      const label = currentlyActive ? "menonaktifkan" : "mengaktifkan";
+      if (!confirm(`Yakin ingin ${label} akun ${row.dosen.nama}?`)) return;
+
+      try {
+        await updateDoc(doc(db, "users", uid), { isActive: !currentlyActive, updatedAt: serverTimestamp() });
+        showPageMessage(`Akun ${row.dosen.nama} berhasil di-${currentlyActive ? "nonaktifkan" : "aktifkan"}.`, "success");
+        loadDosen();
+      } catch (err) {
+        console.error(err);
+        showPageMessage("Gagal mengubah status akun.");
+      }
+    }
+  });
+
+  // ---------- modal open/close ----------
+  function openModal(row = null) {
+    dosenForm.reset();
+    showModalMessage("");
+
+    if (row) {
+      modalTitle.textContent = "Edit Dosen";
+      dosenIdInput.value = row.uid;
+      document.getElementById("nama").value = row.dosen.nama || "";
+      document.getElementById("nidn").value = row.dosen.nidn || "";
+      document.getElementById("email").value = row.dosen.email || "";
+      document.getElementById("noWa").value = row.dosen.noWa || "";
+      document.getElementById("bidangKeahlian").value = row.dosen.bidangKeahlian || "";
+      usernameInput.value = row.user.username || "";
+      usernameInput.disabled = true;
+      passwordGroup.style.display = "none";
+      passwordInput.required = false;
+    } else {
+      modalTitle.textContent = "Tambah Dosen";
+      dosenIdInput.value = "";
+      usernameInput.disabled = false;
+      passwordGroup.style.display = "block";
+      passwordInput.required = true;
+      passwordHint.textContent = "Minimal 6 karakter. Dosen bisa memakai ini untuk login pertama kali.";
+    }
+
+    modalBackdrop.classList.add("open");
+  }
+
+  function closeModal() {
+    modalBackdrop.classList.remove("open");
+  }
+
+  document.getElementById("addButton").addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  // ---------- save (create or update) ----------
+  dosenForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    showModalMessage("");
+
+    const editingUid = dosenIdInput.value;
+    const nama = document.getElementById("nama").value.trim();
+    const nidn = document.getElementById("nidn").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const noWa = document.getElementById("noWa").value.trim();
+    const bidangKeahlian = document.getElementById("bidangKeahlian").value.trim();
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      if (editingUid) {
+        // ---- UPDATE (tidak mengubah username/password) ----
+        await updateDoc(doc(db, "dosen", editingUid), {
+          nama, nidn, email, noWa, bidangKeahlian, updatedAt: serverTimestamp(),
+        });
+        showPageMessage(`Data ${nama} berhasil diperbarui.`, "success");
+      } else {
+        // ---- CREATE (Auth user baru + dokumen users & dosen) ----
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!username || !password) {
+          showModalMessage("Username dan password wajib diisi.");
+          saveButton.disabled = false;
+          saveButton.textContent = "Simpan";
+          return;
+        }
+
+        const email_ = `${username}@sikadu.local`;
+        const uid = await createAuthUser(email_, password);
+
+        await setDoc(doc(db, "users", uid), {
+          username,
+          level: "dosen",
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        await setDoc(doc(db, "dosen", uid), {
+          nama, nidn, email, noWa, bidangKeahlian,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        showPageMessage(`Dosen ${nama} berhasil ditambahkan.`, "success");
+      }
+
+      closeModal();
+      loadDosen();
+
+    } catch (error) {
+      console.error(error);
+      const messages = {
+        "auth/email-already-in-use": "Username tersebut sudah dipakai.",
+        "auth/weak-password": "Password terlalu lemah (minimal 6 karakter).",
+      };
+      showModalMessage(messages[error.code] || "Gagal menyimpan data. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadDosen().catch((err) => { console.error(err); showPageMessage("Gagal memuat data dosen."); });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Mahasiswa - SIKADU</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">SK</div>
+      <div>
+        <div class="name">SIKADU</div>
+        <div class="role">Panel Admin</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="dosen.html">Data Dosen</a>
+      <a href="mahasiswa.html" class="active">Data Mahasiswa</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <button id="logoutButton" class="button-secondary" style="width:100%">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <h1>Data Mahasiswa</h1>
+        <p>Kelola akun dan profil mahasiswa.</p>
+      </div>
+      <button id="addButton" class="button-primary">+ Tambah Mahasiswa</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <input type="search" id="searchInput" placeholder="Cari nama atau NIM...">
+        <span class="hint" id="rowCount"></span>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>NIM</th>
+              <th>Jenis Kelamin</th>
+              <th>No. WhatsApp</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display:none;">
+        Belum ada data mahasiswa. Klik "Tambah Mahasiswa" untuk menambahkan.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: TAMBAH / EDIT MAHASISWA -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Tambah Mahasiswa</h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+
+    <div id="modalMessage" class="message"></div>
+
+    <form id="mhsForm">
+      <input type="hidden" id="mhsId">
+
+      <div class="form-grid-2">
+        <div class="form-group span-2">
+          <label for="nama">Nama Lengkap</label>
+          <input type="text" id="nama" required>
+        </div>
+
+        <div class="form-group">
+          <label for="nim">NIM</label>
+          <input type="text" id="nim" required>
+        </div>
+
+        <div class="form-group">
+          <label for="username">Username Login</label>
+          <input type="text" id="username" placeholder="mis. sama dengan NIM" required>
+        </div>
+
+        <div class="form-group span-2" id="passwordGroup">
+          <label for="password">Password Awal</label>
+          <input type="password" id="password" minlength="6" autocomplete="new-password">
+          <p class="hint" id="passwordHint">Minimal 6 karakter. Mahasiswa bisa memakai ini untuk login pertama kali.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="jenisKelamin">Jenis Kelamin</label>
+          <select id="jenisKelamin">
+            <option value="">Pilih...</option>
+            <option value="Laki-laki">Laki-laki</option>
+            <option value="Perempuan">Perempuan</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="noWa">No. WhatsApp</label>
+          <input type="text" id="noWa">
+        </div>
+
+        <div class="form-group">
+          <label for="tempatLahir">Tempat Lahir</label>
+          <input type="text" id="tempatLahir">
+        </div>
+
+        <div class="form-group">
+          <label for="tanggalLahir">Tanggal Lahir</label>
+          <input type="date" id="tanggalLahir">
+        </div>
+
+        <div class="form-group span-2">
+          <label for="email">Email</label>
+          <input type="email" id="email">
+        </div>
+
+        <div class="form-group span-2">
+          <label for="alamat">Alamat</label>
+          <textarea id="alamat" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js";
+  import { db } from "../assets/firebase-config.js";
+  import { createAuthUser } from "../assets/create-auth-user.js";
+  import {
+    collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  const { profile } = await guardPage("admin");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  // ---------- state ----------
+  let allRows = []; // { uid, mhs, user }
+
+  // ---------- elements ----------
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const rowCount = document.getElementById("rowCount");
+  const searchInput = document.getElementById("searchInput");
+  const pageMessage = document.getElementById("pageMessage");
+
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const mhsForm = document.getElementById("mhsForm");
+  const mhsIdInput = document.getElementById("mhsId");
+  const usernameInput = document.getElementById("username");
+  const passwordGroup = document.getElementById("passwordGroup");
+  const passwordInput = document.getElementById("password");
+  const passwordHint = document.getElementById("passwordHint");
+  const saveButton = document.getElementById("saveButton");
+
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+
+  // ---------- load data ----------
+  async function loadMahasiswa() {
+    tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
+
+    const [mhsSnap, usersSnap] = await Promise.all([
+      getDocs(query(collection(db, "mahasiswa"), orderBy("nama"))),
+      getDocs(collection(db, "users")),
+    ]);
+
+    const usersById = {};
+    usersSnap.forEach((d) => { usersById[d.id] = d.data(); });
+
+    allRows = [];
+    mhsSnap.forEach((d) => {
+      allRows.push({ uid: d.id, mhs: d.data(), user: usersById[d.id] || {} });
+    });
+
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = searchInput.value.trim().toLowerCase();
+    const rows = allRows.filter(({ mhs }) => {
+      if (!search) return true;
+      return (mhs.nama || "").toLowerCase().includes(search)
+        || (mhs.nim || "").toLowerCase().includes(search);
+    });
+
+    rowCount.textContent = `${rows.length} mahasiswa`;
+    emptyState.style.display = rows.length === 0 ? "block" : "none";
+    tableBody.innerHTML = "";
+
+    rows.forEach(({ uid, mhs, user }) => {
+      const tr = document.createElement("tr");
+      const isActive = user.isActive !== false;
+
+      tr.innerHTML = `
+        <td>${escapeHtml(mhs.nama || "-")}</td>
+        <td>${escapeHtml(mhs.nim || "-")}</td>
+        <td>${escapeHtml(mhs.jenisKelamin || "-")}</td>
+        <td>${escapeHtml(mhs.noWa || "-")}</td>
+        <td><span class="badge ${isActive ? "active" : "inactive"}">${isActive ? "Aktif" : "Nonaktif"}</span></td>
+        <td>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-uid="${uid}">Edit</button>
+            <button class="button-danger" data-action="toggle" data-uid="${uid}">${isActive ? "Nonaktifkan" : "Aktifkan"}</button>
+          </div>
+        </td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  // ---------- row actions ----------
+  tableBody.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    const uid = button.dataset.uid;
+    const row = allRows.find((r) => r.uid === uid);
+    if (!row) return;
+
+    if (button.dataset.action === "edit") {
+      openModal(row);
+    }
+
+    if (button.dataset.action === "toggle") {
+      const currentlyActive = row.user.isActive !== false;
+      const label = currentlyActive ? "menonaktifkan" : "mengaktifkan";
+      if (!confirm(`Yakin ingin ${label} akun ${row.mhs.nama}?`)) return;
+
+      try {
+        await updateDoc(doc(db, "users", uid), { isActive: !currentlyActive, updatedAt: serverTimestamp() });
+        showPageMessage(`Akun ${row.mhs.nama} berhasil di-${currentlyActive ? "nonaktifkan" : "aktifkan"}.`, "success");
+        loadMahasiswa();
+      } catch (err) {
+        console.error(err);
+        showPageMessage("Gagal mengubah status akun.");
+      }
+    }
+  });
+
+  // ---------- modal open/close ----------
+  function openModal(row = null) {
+    mhsForm.reset();
+    showModalMessage("");
+
+    if (row) {
+      modalTitle.textContent = "Edit Mahasiswa";
+      mhsIdInput.value = row.uid;
+      document.getElementById("nama").value = row.mhs.nama || "";
+      document.getElementById("nim").value = row.mhs.nim || "";
+      document.getElementById("jenisKelamin").value = row.mhs.jenisKelamin || "";
+      document.getElementById("noWa").value = row.mhs.noWa || "";
+      document.getElementById("tempatLahir").value = row.mhs.tempatLahir || "";
+      document.getElementById("tanggalLahir").value = row.mhs.tanggalLahir || "";
+      document.getElementById("email").value = row.mhs.email || "";
+      document.getElementById("alamat").value = row.mhs.alamat || "";
+      usernameInput.value = row.user.username || "";
+      usernameInput.disabled = true;
+      passwordGroup.style.display = "none";
+      passwordInput.required = false;
+    } else {
+      modalTitle.textContent = "Tambah Mahasiswa";
+      mhsIdInput.value = "";
+      usernameInput.disabled = false;
+      passwordGroup.style.display = "block";
+      passwordInput.required = true;
+      passwordHint.textContent = "Minimal 6 karakter. Mahasiswa bisa memakai ini untuk login pertama kali.";
+    }
+
+    modalBackdrop.classList.add("open");
+  }
+
+  function closeModal() {
+    modalBackdrop.classList.remove("open");
+  }
+
+  document.getElementById("addButton").addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  // ---------- save (create or update) ----------
+  mhsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    showModalMessage("");
+
+    const editingUid = mhsIdInput.value;
+    const nama = document.getElementById("nama").value.trim();
+    const nim = document.getElementById("nim").value.trim();
+    const jenisKelamin = document.getElementById("jenisKelamin").value;
+    const noWa = document.getElementById("noWa").value.trim();
+    const tempatLahir = document.getElementById("tempatLahir").value.trim();
+    const tanggalLahir = document.getElementById("tanggalLahir").value;
+    const email = document.getElementById("email").value.trim();
+    const alamat = document.getElementById("alamat").value.trim();
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      if (editingUid) {
+        // ---- UPDATE (tidak mengubah username/password) ----
+        await updateDoc(doc(db, "mahasiswa", editingUid), {
+          nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+          updatedAt: serverTimestamp(),
+        });
+        showPageMessage(`Data ${nama} berhasil diperbarui.`, "success");
+      } else {
+        // ---- CREATE (Auth user baru + dokumen users & mahasiswa) ----
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!username || !password) {
+          showModalMessage("Username dan password wajib diisi.");
+          saveButton.disabled = false;
+          saveButton.textContent = "Simpan";
+          return;
+        }
+
+        const email_ = `${username}@sikadu.local`;
+        const uid = await createAuthUser(email_, password);
+
+        await setDoc(doc(db, "users", uid), {
+          username,
+          level: "mahasiswa",
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        await setDoc(doc(db, "mahasiswa", uid), {
+          nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        showPageMessage(`Mahasiswa ${nama} berhasil ditambahkan.`, "success");
+      }
+
+      closeModal();
+      loadMahasiswa();
+
+    } catch (error) {
+      console.error(error);
+      const messages = {
+        "auth/email-already-in-use": "Username tersebut sudah dipakai.",
+        "auth/weak-password": "Password terlalu lemah (minimal 6 karakter).",
+      };
+      showModalMessage(messages[error.code] || "Gagal menyimpan data. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadMahasiswa().catch((err) => { console.error(err); showPageMessage("Gagal memuat data mahasiswa."); });
+</script>
+
+</body>
+</html>
