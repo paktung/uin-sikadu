@@ -23,6 +23,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isDosenOwnsKelas(kelasId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/kelasKuliah/$(kelasId)).data.dosenId == request.auth.uid;
+    }
+
     // ---------------- users ----------------
     match /users/{uid} {
       // Bootstrap: izinkan pembuatan akun admin PERTAMA saat koleksi masih kosong.
@@ -56,6 +61,51 @@ service cloud.firestore {
     match /tahunAkademik/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /kelasKuliah/{id}   { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /pengumuman/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+
+    // ---------------- KRS (mahasiswa isi sendiri) ----------------
+    match /krs/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.mahasiswaId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.mahasiswaId == request.auth.uid);
+      allow update: if isAdmin();
+    }
+
+    // ---------------- Materi (dosen pemilik kelas / admin) ----------------
+    match /materi/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isDosenOwnsKelas(request.resource.data.kelasKuliahId);
+      allow update, delete: if isAdmin() || isDosenOwnsKelas(resource.data.kelasKuliahId);
+    }
+
+    // ---------------- Pertemuan & Presensi ----------------
+    match /pertemuan/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isDosenOwnsKelas(request.resource.data.kelasKuliahId);
+      allow update, delete: if isAdmin() || isDosenOwnsKelas(resource.data.kelasKuliahId);
+    }
+    match /absensi/{id} {
+      // Disederhanakan untuk MVP: siapapun yang login boleh baca/tulis.
+      // TODO tahap berikutnya: batasi tulis hanya untuk dosen pemilik kelas
+      // (butuh nested-get pertemuan -> kelasKuliah -> dosenId).
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ---------------- Tugas, Pengumpulan, Nilai (disiapkan untuk tahap berikutnya) ----------------
+    match /tugas/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isDosenOwnsKelas(request.resource.data.kelasKuliahId);
+      allow update, delete: if isAdmin() || isDosenOwnsKelas(resource.data.kelasKuliahId);
+    }
+    match /tugasSubmission/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.mahasiswaId == request.auth.uid;
+      allow update: if isAdmin() || isSignedIn(); // disederhanakan; perketat nanti
+    }
+    match /nilai/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // disederhanakan; perketat nanti
+    }
 
     // ---------------- everything else (materi, tugas, nilai, dst) ----------------
     // Placeholder ketat: tolak dulu semua akses ke koleksi lain sampai
