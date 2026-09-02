@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
 <link rel="stylesheet" href="assets/style.css">
 <style>
   .splash {
@@ -20,7 +21,7 @@
   .spinner {
     width: 22px; height: 22px;
     border: 3px solid rgba(255,255,255,.25);
-    border-top-color: #ff6b00;
+    border-top-color: #1a9b62;
     border-radius: 50%;
     animation: spin .7s linear infinite;
   }
@@ -30,19 +31,54 @@
 <body class="brand-bg">
 
   <div class="splash">
-    <div class="logo">SK</div>
+    <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo UIN Gus Dur"></div>
     <div class="spinner"></div>
     <p id="statusText">Memeriksa sesi login...</p>
   </div>
+
+  <script>
+    // Watchdog TANPA type="module": kalau skrip module di bawah gagal jalan
+    // sama sekali (paling sering karena file ini dibuka langsung dengan
+    // dobel klik / file://, dan browser memblokir import ES module dari
+    // file://), window.__sikaduModuleStarted tidak akan pernah ke-set,
+    // sehingga pesan di bawah ini muncul menggantikan spinner yang diam.
+    window.__sikaduModuleStarted = false;
+    setTimeout(function () {
+      if (!window.__sikaduModuleStarted) {
+        document.getElementById("statusText").innerHTML =
+          'Halaman ini tidak bisa memuat modul Firebase.<br>' +
+          'Kemungkinan besar file dibuka langsung (file://) alih-alih lewat server.<br>' +
+          'Jalankan lewat <code>npx serve .</code> atau upload ke Firebase Hosting, lalu buka lewat http/https.';
+        document.querySelector(".spinner").style.display = "none";
+      }
+    }, 4000);
+  </script>
 
   <script type="module">
     import { auth, db, ROLE_HOME } from "./assets/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+    window.__sikaduModuleStarted = true;
+
     const statusText = document.getElementById("statusText");
 
+    // Safety net kedua: kalau modul berhasil jalan tapi Firebase Auth belum
+    // juga memberi status setelah 8 detik (mis. koneksi lambat/terblokir),
+    // beri tahu pengguna dengan jelas alih-alih membiarkan spinner diam terus.
+    let resolved = false;
+    setTimeout(() => {
+      if (!resolved) {
+        statusText.innerHTML =
+          'Memeriksa sesi login lebih lama dari biasanya.<br>' +
+          'Periksa koneksi internet, atau domain ini belum ditambahkan di ' +
+          'Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized domains.';
+      }
+    }, 8000);
+
     onAuthStateChanged(auth, async (user) => {
+      resolved = true;
+
       if (!user) {
         window.location.href = "login.html";
         return;
