@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KRS - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=5">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Mahasiswa</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user-row">
+        <div class="avatar" id="sidebarAvatar">M</div>
+        <div class="sidebar-user"><div class="name-line" id="sidebarUser">Memuat...</div></div>
+      </div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>KRS</h1><p>Kartu Rencana Studi - pilih kelas untuk tahun akademik aktif.</p></div>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="info-card-highlight">
+      <div class="stat-icon c1">📅</div>
+      <div>
+        <div class="title">Tahun Akademik Aktif</div>
+        <div class="value" id="tahunAktifLabel">Memuat...</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <h2 style="font-size:16px; margin-bottom:14px;">Kelas yang Sudah Diambil</h2>
+      <div id="krsList"></div>
+      <div id="krsEmpty" class="empty-state" style="display:none;">Belum ada kelas yang diambil.</div>
+    </div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <h2 style="font-size:16px;">Kelas yang Tersedia</h2>
+        <input type="search" id="searchInput" placeholder="Cari mata kuliah...">
+      </div>
+      <div id="availableList"></div>
+      <div id="availableEmpty" class="empty-state" style="display:none;">Tidak ada kelas tersedia.</div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
+  import {
+    collection, doc, addDoc, deleteDoc, getDoc, getDocs, query, where, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "M";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "M";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  renderMahasiswaNav("krs.html");
+  const { uid, profile } = await guardPage("mahasiswa");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Mahasiswa";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  let tahunAktif = null;
+  let allKelas = [];
+  let mataKuliahById = {};
+  let dosenById = {};
+  let myKrs = []; // { id, kelasKuliahId }
+
+  async function loadAll() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) {
+      document.getElementById("tahunAktifLabel").textContent = "Belum ada periode aktif";
+      showPageMessage("Belum ada tahun akademik yang diaktifkan admin. KRS belum bisa diisi.");
+      return;
+    }
+    tahunAktif = { id: tahunSnap.docs[0].id, ...tahunSnap.docs[0].data() };
+    document.getElementById("tahunAktifLabel").textContent = `${tahunAktif.tahun} - Semester ${tahunAktif.semester}`;
+
+    const [kelasSnap, mkSnap, dosenSnap, krsSnap] = await withTimeout(Promise.all([
+      getDocs(query(collection(db, "kelasKuliah"), where("tahunAkademikId", "==", tahunAktif.id))),
+      getDocs(collection(db, "mataKuliah")),
+      getDocs(collection(db, "dosen")),
+      getDocs(query(collection(db, "krs"), where("mahasiswaId", "==", uid), where("tahunAkademikId", "==", tahunAktif.id))),
+    ]), 15000, "Memuat data KRS");
+
+    allKelas = kelasSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    mataKuliahById = {}; mkSnap.forEach((d) => { mataKuliahById[d.id] = d.data(); });
+    dosenById = {}; dosenSnap.forEach((d) => { dosenById[d.id] = d.data(); });
+    myKrs = krsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    render();
+  }
+
+  function jadwalText(k) {
+    if (!k.hari) return "Jadwal belum ditentukan";
+    return `${k.hari}, ${k.jamMulai || "?"}-${k.jamSelesai || "?"} @ ${k.ruang || "-"}`;
+  }
+
+  function render() {
+    const takenIds = new Set(myKrs.map((k) => k.kelasKuliahId));
+    const krsList = document.getElementById("krsList");
+    const krsEmpty = document.getElementById("krsEmpty");
+    const taken = allKelas.filter((k) => takenIds.has(k.id));
+
+    krsList.innerHTML = "";
+    krsEmpty.style.display = taken.length === 0 ? "block" : "none";
+    taken.forEach((k) => {
+      const mk = mataKuliahById[k.mataKuliahId] || {};
+      const dosen = dosenById[k.dosenId] || {};
+      const krsRow = myKrs.find((r) => r.kelasKuliahId === k.id);
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")} (${escapeHtml(mk.sks ?? "-")} SKS)</div>
+            <div class="meta">
+              <span>Dosen: ${escapeHtml(dosen.nama || "-")}</span>
+              <span>${escapeHtml(jadwalText(k))}</span>
+            </div>
+          </div>
+          <button class="button-danger" data-action="drop" data-krs-id="${krsRow.id}">Batalkan</button>
+        </div>`;
+      krsList.appendChild(card);
+    });
+
+    const search = document.getElementById("searchInput").value.trim().toLowerCase();
+    const availableList = document.getElementById("availableList");
+    const availableEmpty = document.getElementById("availableEmpty");
+    let available = allKelas.filter((k) => !takenIds.has(k.id));
+    if (search) {
+      available = available.filter((k) => (mataKuliahById[k.mataKuliahId]?.nama || "").toLowerCase().includes(search));
+    }
+
+    availableList.innerHTML = "";
+    availableEmpty.style.display = available.length === 0 ? "block" : "none";
+    available.forEach((k) => {
+      const mk = mataKuliahById[k.mataKuliahId] || {};
+      const dosen = dosenById[k.dosenId] || {};
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")} (${escapeHtml(mk.sks ?? "-")} SKS)</div>
+            <div class="meta">
+              <span>Dosen: ${escapeHtml(dosen.nama || "-")}</span>
+              <span>${escapeHtml(jadwalText(k))}</span>
+              <span>Kapasitas: ${escapeHtml(k.kapasitas ?? "-")}</span>
+            </div>
+          </div>
+          <button class="button-primary" data-action="enroll" data-kelas-id="${k.id}">Ambil Kelas</button>
+        </div>`;
+      availableList.appendChild(card);
+    });
+  }
+
+  document.getElementById("searchInput").addEventListener("input", render);
+
+  document.addEventListener("click", async (e) => {
+    const enrollBtn = e.target.closest('button[data-action="enroll"]');
+    const dropBtn = e.target.closest('button[data-action="drop"]');
+
+    if (enrollBtn) {
+      enrollBtn.disabled = true;
+      enrollBtn.textContent = "Memproses...";
+      try {
+        await withTimeout(addDoc(collection(db, "krs"), {
+          mahasiswaId: uid,
+          kelasKuliahId: enrollBtn.dataset.kelasId,
+          tahunAkademikId: tahunAktif.id,
+          status: "disetujui",
+          enrolledAt: serverTimestamp(),
+        }), 15000, "Ambil kelas");
+        showPageMessage("Kelas berhasil diambil.", "success");
+        await loadAll();
+      } catch (err) {
+        console.error(err);
+        showPageMessage(err.message || "Gagal mengambil kelas.");
+        enrollBtn.disabled = false;
+        enrollBtn.textContent = "Ambil Kelas";
+      }
+    }
+
+    if (dropBtn) {
+      if (!confirm("Batalkan kelas ini?")) return;
+      dropBtn.disabled = true;
+      dropBtn.textContent = "Memproses...";
+      try {
+        await withTimeout(deleteDoc(doc(db, "krs", dropBtn.dataset.krsId)), 15000, "Batalkan kelas");
+        showPageMessage("Kelas berhasil dibatalkan.", "success");
+        await loadAll();
+      } catch (err) {
+        console.error(err);
+        showPageMessage(err.message || "Gagal membatalkan kelas.");
+        dropBtn.disabled = false;
+        dropBtn.textContent = "Batalkan";
+      }
+    }
+  });
+
+  loadAll().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat data KRS."); });
+</script>
+
+</body>
+</html>

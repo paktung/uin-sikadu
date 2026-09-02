@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Mahasiswa - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=4">
+<link rel="stylesheet" href="../assets/style.css?v=5">
 </head>
 <body>
 
@@ -20,9 +20,7 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <a href="dashboard.html" class="active">Dashboard</a>
-    </nav>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
 
     <div class="sidebar-footer">
       <div class="sidebar-user-row">
@@ -70,9 +68,18 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:20px;">
+      <h2 style="font-size:16px; margin-bottom:14px;">Langkah cepat</h2>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="krs.html" class="button-secondary" style="text-decoration:none;">📝 Isi KRS</a>
+        <a href="materi.html" class="button-secondary" style="text-decoration:none;">📚 Lihat Materi</a>
+        <a href="presensi.html" class="button-secondary" style="text-decoration:none;">✅ Rekap Presensi</a>
+      </div>
+    </div>
+
     <div class="card">
       <h2 style="font-size:16px; margin-bottom:8px;">Segera Hadir</h2>
-      <p class="hint">KRS, Jadwal Kuliah, Materi, Tugas, Presensi, dan Nilai/KHS sedang dalam pengembangan tahap berikutnya. Untuk sekarang, pastikan profil Anda sudah lengkap dan benar lewat tombol "Edit Profil" di atas.</p>
+      <p class="hint">Tugas (pengumpulan & nilai) dan Nilai/KHS sedang dalam pengembangan tahap berikutnya.</p>
     </div>
 
   </main>
@@ -113,12 +120,15 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=4";
-  import { db } from "../assets/firebase-config.js?v=4";
-  import { withTimeout } from "../assets/with-timeout.js?v=4";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
   import {
     doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  renderMahasiswaNav("dashboard.html");
 
   function initials(name) {
     if (!name) return "M";
