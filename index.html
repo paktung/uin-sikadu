@@ -16,7 +16,7 @@
     gap: 18px;
     color: white;
   }
-  .splash .logo { width: 68px; height: 68px; }
+  .splash .logo { width: 48px; height: 48px; }
   .splash p { color: rgba(255,255,255,.65); font-size: 14px; text-align: center; max-width: 320px; }
   .spinner {
     width: 22px; height: 22px;
@@ -46,9 +46,11 @@
     setTimeout(function () {
       if (!window.__sikaduModuleStarted) {
         document.getElementById("statusText").innerHTML =
-          'Halaman ini tidak bisa memuat modul Firebase.<br>' +
-          'Kemungkinan besar file dibuka langsung (file://) alih-alih lewat server.<br>' +
-          'Jalankan lewat <code>npx serve .</code> atau upload ke Firebase Hosting, lalu buka lewat http/https.';
+          'Modul Firebase gagal dimuat/dijalankan.<br>' +
+          'Buka Console browser (F12 → tab Console) untuk lihat pesan error aslinya.<br>' +
+          'Penyebab tersering: (1) file dibuka langsung lewat file:// bukan http/https, ' +
+          'atau (2) file di server tidak lengkap/tidak sinkron — pastikan SELURUH folder ' +
+          '(termasuk /assets) di-upload ulang bersamaan, bukan satu file saja.';
         document.querySelector(".spinner").style.display = "none";
       }
     }, 4000);
