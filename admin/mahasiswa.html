@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Mahasiswa - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/style.css?v=3">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -35,7 +36,14 @@
         <h1>Data Mahasiswa</h1>
         <p>Kelola akun dan profil mahasiswa.</p>
       </div>
-      <button id="addButton" class="button-primary">+ Tambah Mahasiswa</button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="templateButton" class="button-secondary">Unduh Template Excel</button>
+        <label class="button-secondary" style="cursor:pointer; margin:0;">
+          Import dari Excel
+          <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" style="display:none;">
+        </label>
+        <button id="addButton" class="button-primary">+ Tambah Mahasiswa</button>
+      </div>
     </div>
 
     <div id="pageMessage" class="message"></div>
@@ -148,12 +156,39 @@
   </div>
 </div>
 
+<!-- MODAL: IMPORT EXCEL -->
+<div class="modal-backdrop" id="importModalBackdrop">
+  <div class="modal" style="max-width: 720px;">
+    <div class="modal-header">
+      <h2>Import Mahasiswa dari Excel</h2>
+      <button class="modal-close" id="importModalClose">&times;</button>
+    </div>
+
+    <div id="importMessage" class="message"></div>
+    <p class="hint" id="importSummary" style="margin-bottom: 12px;"></p>
+
+    <div style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 10px;">
+      <table class="data-table" style="font-size: 13px;">
+        <thead>
+          <tr><th>#</th><th>Username</th><th>NIM</th><th>Nama</th><th>Status</th></tr>
+        </thead>
+        <tbody id="importTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="button-secondary" id="importCancelButton">Tutup</button>
+      <button type="button" class="button-primary" id="importStartButton">Mulai Import</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js";
-  import { renderAdminNav } from "../assets/admin-nav.js";
-  import { db } from "../assets/firebase-config.js";
-  import { withTimeout } from "../assets/with-timeout.js";
-  import { createAuthUser } from "../assets/create-auth-user.js";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=3";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=3";
+  import { db } from "../assets/firebase-config.js?v=3";
+  import { withTimeout } from "../assets/with-timeout.js?v=3";
+  import { createAuthUser, createAuthUserBatch } from "../assets/create-auth-user.js?v=3";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -400,6 +435,180 @@
   });
 
   loadMahasiswa().catch((err) => { console.error(err); showPageMessage("Gagal memuat data mahasiswa."); });
+
+  // ==================== IMPORT EXCEL ====================
+
+  const TEMPLATE_HEADERS = ["username", "password", "nim", "nama", "jenisKelamin", "noWa", "tempatLahir", "tanggalLahir", "email", "alamat"];
+
+  document.getElementById("templateButton").addEventListener("click", () => {
+    const example = ["23trs001", "password123", "23trs001", "Contoh Nama Mahasiswa", "Laki-laki", "081234567890", "Pekalongan", "2005-01-15", "contoh@email.com", "Jl. Contoh No. 1"];
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, example]);
+    ws["!cols"] = TEMPLATE_HEADERS.map(() => ({ wch: 18 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Mahasiswa");
+    XLSX.writeFile(wb, "template-import-mahasiswa.xlsx");
+  });
+
+  const importModalBackdrop = document.getElementById("importModalBackdrop");
+  const importMessage = document.getElementById("importMessage");
+  const importSummary = document.getElementById("importSummary");
+  const importTableBody = document.getElementById("importTableBody");
+  const importStartButton = document.getElementById("importStartButton");
+  const importCancelButton = document.getElementById("importCancelButton");
+  const excelInput = document.getElementById("excelInput");
+
+  let importRows = []; // { username, password, nim, nama, ..., _status, _rowEl }
+
+  function showImportMessage(text, type = "error") {
+    importMessage.textContent = text;
+    importMessage.className = `message ${type}`;
+  }
+
+  function closeImportModal() {
+    importModalBackdrop.classList.remove("open");
+    excelInput.value = ""; // supaya file yang sama bisa dipilih ulang
+  }
+  document.getElementById("importModalClose").addEventListener("click", closeImportModal);
+  importCancelButton.addEventListener("click", closeImportModal);
+  importModalBackdrop.addEventListener("click", (e) => { if (e.target === importModalBackdrop) closeImportModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeImportModal(); });
+
+  function renderImportPreview() {
+    const existingUsernames = new Set(allRows.map((r) => (r.user.username || "").toLowerCase()));
+    const existingNim = new Set(allRows.map((r) => (r.mhs.nim || "").toLowerCase()));
+    const seenInFile = new Set();
+
+    importTableBody.innerHTML = "";
+    let validCount = 0;
+
+    importRows.forEach((row, idx) => {
+      const problems = [];
+      if (!row.username) problems.push("username kosong");
+      if (!row.password || String(row.password).length < 6) problems.push("password < 6 karakter");
+      if (!row.nim) problems.push("NIM kosong");
+      if (!row.nama) problems.push("nama kosong");
+      if (row.username && existingUsernames.has(String(row.username).toLowerCase())) problems.push("username sudah dipakai");
+      if (row.nim && existingNim.has(String(row.nim).toLowerCase())) problems.push("NIM sudah ada");
+      const key = String(row.username || "").toLowerCase();
+      if (key && seenInFile.has(key)) problems.push("duplikat di file ini");
+      seenInFile.add(key);
+
+      row._valid = problems.length === 0;
+      row._statusText = row._valid ? "Siap diimport" : `Dilewati: ${problems.join(", ")}`;
+      if (row._valid) validCount++;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${escapeHtml(row.username || "-")}</td>
+        <td>${escapeHtml(row.nim || "-")}</td>
+        <td>${escapeHtml(row.nama || "-")}</td>
+        <td class="import-status">${row._valid ? '<span class="badge active">Siap</span>' : `<span class="badge inactive">${escapeHtml(row._statusText)}</span>`}</td>
+      `;
+      importTableBody.appendChild(tr);
+      row._rowEl = tr.querySelector(".import-status");
+    });
+
+    importSummary.textContent = `${importRows.length} baris terbaca - ${validCount} siap diimport, ${importRows.length - validCount} dilewati.`;
+    importStartButton.disabled = validCount === 0;
+  }
+
+  excelInput.addEventListener("change", async () => {
+    const file = excelInput.files[0];
+    if (!file) return;
+
+    showImportMessage("");
+    importModalBackdrop.classList.add("open");
+    importSummary.textContent = "Membaca file...";
+    importTableBody.innerHTML = "";
+    importStartButton.disabled = true;
+
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+      const firstSheet = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+      importRows = rawRows.map((r) => ({
+        username: String(r.username ?? "").trim(),
+        password: String(r.password ?? "").trim(),
+        nim: String(r.nim ?? "").trim(),
+        nama: String(r.nama ?? "").trim(),
+        jenisKelamin: String(r.jenisKelamin ?? "").trim(),
+        noWa: String(r.noWa ?? "").trim(),
+        tempatLahir: String(r.tempatLahir ?? "").trim(),
+        tanggalLahir: String(r.tanggalLahir ?? "").trim(),
+        email: String(r.email ?? "").trim(),
+        alamat: String(r.alamat ?? "").trim(),
+      }));
+
+      if (importRows.length === 0) {
+        showImportMessage("File kosong atau format kolom tidak cocok dengan template.");
+        importSummary.textContent = "";
+        return;
+      }
+
+      renderImportPreview();
+    } catch (err) {
+      console.error(err);
+      showImportMessage("Gagal membaca file. Pastikan formatnya .xlsx/.xls/.csv sesuai template.");
+      importSummary.textContent = "";
+    }
+  });
+
+  importStartButton.addEventListener("click", async () => {
+    const validRows = importRows.filter((r) => r._valid);
+    if (validRows.length === 0) return;
+
+    importStartButton.disabled = true;
+    importCancelButton.disabled = true;
+    showImportMessage("");
+
+    const batch = createAuthUserBatch();
+    let success = 0;
+    let failed = 0;
+
+    for (const row of validRows) {
+      row._rowEl.innerHTML = '<span class="badge inactive">Memproses...</span>';
+      try {
+        const email = `${row.username}@sikadu.local`;
+        const uid = await withTimeout(batch.create(email, row.password), 15000, "Membuat akun login");
+
+        await withTimeout(setDoc(doc(db, "users", uid), {
+          username: row.username,
+          level: "mahasiswa",
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }), 15000, "Simpan profil akun");
+
+        await withTimeout(setDoc(doc(db, "mahasiswa", uid), {
+          nama: row.nama, nim: row.nim, jenisKelamin: row.jenisKelamin, noWa: row.noWa,
+          tempatLahir: row.tempatLahir, tanggalLahir: row.tanggalLahir, email: row.email, alamat: row.alamat,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }), 15000, "Simpan profil mahasiswa");
+
+        row._rowEl.innerHTML = '<span class="badge active">Berhasil</span>';
+        success++;
+      } catch (err) {
+        console.error("Import gagal untuk baris", row, err);
+        const reason = err.code === "auth/email-already-in-use" ? "username sudah dipakai" : (err.message || "gagal");
+        row._rowEl.innerHTML = `<span class="badge inactive">Gagal: ${escapeHtml(reason)}</span>`;
+        failed++;
+      }
+    }
+
+    await batch.dispose().catch(() => {});
+
+    importSummary.textContent = `Selesai. ${success} akun berhasil dibuat, ${failed} gagal.`;
+    showImportMessage(`Import selesai: ${success} berhasil, ${failed} gagal.`, failed > 0 ? "warn" : "success");
+    importCancelButton.disabled = false;
+    importStartButton.textContent = "Selesai";
+
+    loadMahasiswa();
+    showPageMessage(`Import Excel selesai: ${success} mahasiswa ditambahkan.`, "success");
+  });
 </script>
 
 </body>

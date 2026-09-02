@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/style.css?v=3">
 </head>
 <body>
 
@@ -131,11 +131,11 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js";
-  import { renderAdminNav } from "../assets/admin-nav.js";
-  import { db } from "../assets/firebase-config.js";
-  import { withTimeout } from "../assets/with-timeout.js";
-  import { createAuthUser } from "../assets/create-auth-user.js";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=3";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=3";
+  import { db } from "../assets/firebase-config.js?v=3";
+  import { withTimeout } from "../assets/with-timeout.js?v=3";
+  import { createAuthUser } from "../assets/create-auth-user.js?v=3";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
