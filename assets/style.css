@@ -4,10 +4,11 @@
    Dipakai bersama oleh index, login, dan seluruh dashboard admin/dosen/mahasiswa. */
 
 :root {
-  --accent-1: #ff6b00;
-  --accent-2: #ff3366;
-  --ink: #111827;
-  --ink-2: #1f2937;
+  --accent-1: #1a9b62;
+  --accent-2: #04593f;
+  --accent-gold: #c9a24b;
+  --ink: #06231a;
+  --ink-2: #0c3d2c;
   --muted: #6b7280;
   --muted-2: #9ca3af;
   --border: #d1d5db;
@@ -38,8 +39,10 @@ body {
 .brand-bg {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 10% 10%, rgba(255, 107, 0, .35), transparent 35%),
-    radial-gradient(circle at 90% 90%, rgba(255, 51, 102, .30), transparent 35%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
+    radial-gradient(circle at 10% 10%, rgba(26, 155, 98, .35), transparent 35%),
+    radial-gradient(circle at 90% 90%, rgba(201, 162, 75, .18), transparent 35%),
     linear-gradient(135deg, var(--ink), var(--ink-2));
 }
 
@@ -52,15 +55,18 @@ body {
 .logo {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-size: 18px;
   font-weight: 800;
-  box-shadow: 0 10px 24px rgba(255, 80, 50, .30);
   flex-shrink: 0;
+}
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* ============ MESSAGE / ALERT ============ */
@@ -103,7 +109,7 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 4px rgba(255, 90, 54, .10);
+  box-shadow: 0 0 0 4px rgba(26, 155, 98, .12);
 }
 
 .password-wrapper { position: relative; }
@@ -135,7 +141,7 @@ input:focus, select:focus, textarea:focus {
   transition: .15s;
   padding: 13px 20px;
 }
-.button-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(255, 80, 50, .28); }
+.button-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(4, 89, 63, .30); }
 .button-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
 
 .button-secondary {

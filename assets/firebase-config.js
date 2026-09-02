@@ -26,9 +26,21 @@ export const db = getFirestore(app);
 export const EMAIL_DOMAIN = "@sikadu.local";
 export const usernameToEmail = (username) => `${username.trim()}${EMAIL_DOMAIN}`;
 
-// Halaman dashboard tujuan untuk tiap level user.
+// Halaman dashboard tujuan untuk tiap level user (path absolut dari domain root).
 export const ROLE_HOME = {
   admin: "/admin/dashboard.html",
   dosen: "/dosen/dashboard.html",
   mahasiswa: "/mahasiswa/dashboard.html",
 };
+
+// Level di Firestore kadang ketikannya tidak konsisten ("Admin", " admin ",
+// dst). Selalu normalisasi sebelum dipakai untuk pengecekan/redirect.
+export const normalizeLevel = (level) => String(level || "").trim().toLowerCase();
+
+// Redirect pakai window.location.origin (bukan path relatif yang di-strip
+// manual) supaya tetap benar dari halaman manapun (root, /admin/, /dosen/,
+// dst), selama aplikasi di-deploy di ROOT domain/hosting (bukan subfolder).
+export function goToRoleHome(level) {
+  const path = ROLE_HOME[normalizeLevel(level)];
+  window.location.href = path ? window.location.origin + path : window.location.origin + "/login.html";
+}
