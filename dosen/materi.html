@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Materi - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=10">
+<link rel="stylesheet" href="../assets/style.css?v=11">
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <style>
-  .ql-editor { min-height: 180px; font-size: 14px; background: white; }
+  .ql-editor { min-height: 160px; font-size: 14px; background: white; }
   .ql-toolbar.ql-snow { border-radius: 12px 12px 0 0; border-color: var(--border); }
   .ql-container.ql-snow { border-radius: 0 0 12px 12px; border-color: var(--border); }
-  #htmlSource { display: none; width: 100%; min-height: 220px; font-family: monospace; font-size: 12.5px; }
+  .html-source-textarea { display: none; width: 100%; min-height: 200px; font-family: monospace; font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -37,22 +37,31 @@
 
   <main class="main">
     <div class="page-header">
-      <div><h1>Materi</h1><p>Kelola materi untuk kelas yang Anda ampu.</p></div>
+      <div><h1>Materi</h1><p>Materi dikelompokkan per pertemuan.</p></div>
       <button id="addButton" class="button-primary" disabled>+ Tambah Materi</button>
     </div>
 
     <div id="pageMessage" class="message"></div>
 
     <div class="card" style="margin-bottom:20px;">
-      <div class="form-group" style="margin-bottom:0;">
-        <label for="kelasSelect">Pilih Kelas</label>
-        <select id="kelasSelect"></select>
+      <div class="form-grid-2">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="kelasSelect">Pilih Kelas</label>
+          <select id="kelasSelect"></select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="pertemuanSelect">Pilih Pertemuan</label>
+          <select id="pertemuanSelect"></select>
+        </div>
       </div>
+      <p class="hint" id="noPertemuanHint" style="margin-top:10px; display:none;">
+        Belum ada pertemuan untuk kelas ini. Buat pertemuan dulu di menu <a href="presensi.html">Presensi</a>.
+      </p>
     </div>
 
     <div class="card">
       <div id="materiList" class="scroll-panel" style="max-height:55vh;"></div>
-      <div id="materiEmpty" class="empty-state" style="display:none;">Belum ada materi untuk kelas ini.</div>
+      <div id="materiEmpty" class="empty-state" style="display:none;">Belum ada materi untuk pertemuan ini.</div>
     </div>
   </main>
 </div>
@@ -65,14 +74,16 @@
       <input type="hidden" id="itemId">
       <div class="form-group"><label for="judul">Judul</label><input type="text" id="judul" required></div>
       <div class="form-group"><label for="deskripsi">Deskripsi Singkat</label><input type="text" id="deskripsi"></div>
+
       <div class="form-group">
         <label>Isi Materi</label>
         <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
           <button type="button" id="toggleHtmlButton" class="button-ghost" style="padding:4px 10px; font-size:12px;">Edit sebagai kode HTML</button>
         </div>
         <div id="editorContainer"></div>
-        <textarea id="htmlSource" placeholder="&lt;p&gt;Tulis HTML di sini...&lt;/p&gt;"></textarea>
+        <textarea id="htmlSource" class="html-source-textarea" placeholder="&lt;p&gt;Tulis HTML di sini...&lt;/p&gt;"></textarea>
       </div>
+
       <div class="form-grid-2">
         <div class="form-group"><label for="fileUrl">Link File</label><input type="url" id="fileUrl" placeholder="https://..."></div>
         <div class="form-group"><label for="videoUrl">Link Video</label><input type="url" id="videoUrl" placeholder="https://..."></div>
@@ -90,18 +101,21 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=10";
-  import { db } from "../assets/firebase-config.js?v=10";
-  import { withTimeout } from "../assets/with-timeout.js?v=10";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=11";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=11";
+  import { db } from "../assets/firebase-config.js?v=11";
+  import { withTimeout } from "../assets/with-timeout.js?v=11";
   import {
-    collection, doc, getDoc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, serverTimestamp,
+    collection, doc, getDoc, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   function initials(name) {
     if (!name) return "D";
     const p = name.trim().split(/\s+/);
     return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "D";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
   // ---------- editor WYSIWYG (Quill) + mode kode HTML ----------
@@ -138,17 +152,11 @@
       toggleHtmlButton.textContent = "Edit sebagai kode HTML";
     }
   });
-
-  function getIsiMateriHtml() {
-    return htmlMode ? htmlSourceEl.value : quill.root.innerHTML;
-  }
+  function getIsiMateriHtml() { return htmlMode ? htmlSourceEl.value : quill.root.innerHTML; }
   function setIsiMateriHtml(html) {
     quill.root.innerHTML = html || "";
     htmlSourceEl.value = html || "";
-    if (htmlMode) { toggleHtmlButton.click(); } // pastikan selalu mulai dari mode visual
-  }
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    if (htmlMode) { toggleHtmlButton.click(); }
   }
 
   renderDosenNav("materi.html");
@@ -165,43 +173,65 @@
   }
 
   const kelasSelect = document.getElementById("kelasSelect");
+  const pertemuanSelect = document.getElementById("pertemuanSelect");
+  const noPertemuanHint = document.getElementById("noPertemuanHint");
   const addButton = document.getElementById("addButton");
-  let myKelas = [];
   let materiRows = [];
 
   async function loadKelasSaya() {
     const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
-    if (tahunSnap.empty) {
-      kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`;
-      return;
-    }
+    if (tahunSnap.empty) { kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`; return; }
     const tahunId = tahunSnap.docs[0].id;
-    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
 
-    if (kelasSnap.empty) {
-      kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`;
-      return;
-    }
+    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
+    if (kelasSnap.empty) { kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`; return; }
 
     const mkIds = [...new Set(kelasSnap.docs.map((d) => d.data().mataKuliahId))];
     const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
     const mkById = {};
     mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
 
-    myKelas = kelasSnap.docs.map((d) => ({ id: d.id, ...d.data(), _mk: mkById[d.data().mataKuliahId] || {} }));
-    kelasSelect.innerHTML = myKelas.map((k) => `<option value="${k.id}">${escapeHtml(k._mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`).join("");
+    kelasSelect.innerHTML = kelasSnap.docs.map((d) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
+    }).join("");
+
+    await loadPertemuan();
+  }
+
+  async function loadPertemuan() {
+    const kelasId = kelasSelect.value;
+    if (!kelasId) return;
+
+    const snap = await withTimeout(getDocs(query(collection(db, "pertemuan"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat pertemuan");
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.pertemuanKe || 0) - (b.pertemuanKe || 0));
+
+    if (rows.length === 0) {
+      pertemuanSelect.innerHTML = `<option value="">Belum ada pertemuan</option>`;
+      noPertemuanHint.style.display = "block";
+      addButton.disabled = true;
+      document.getElementById("materiList").innerHTML = "";
+      document.getElementById("materiEmpty").style.display = "none";
+      return;
+    }
+
+    noPertemuanHint.style.display = "none";
     addButton.disabled = false;
+    pertemuanSelect.innerHTML = rows.map((p) => `<option value="${p.id}">Pertemuan ${escapeHtml(p.pertemuanKe)}${p.judul ? " - " + escapeHtml(p.judul) : ""}</option>`).join("");
+
     await loadMateri();
   }
 
   async function loadMateri() {
-    const kelasId = kelasSelect.value;
+    const pertemuanId = pertemuanSelect.value;
     const materiList = document.getElementById("materiList");
     const materiEmpty = document.getElementById("materiEmpty");
-    if (!kelasId) { materiList.innerHTML = ""; materiEmpty.style.display = "block"; return; }
+    if (!pertemuanId) { materiList.innerHTML = ""; return; }
 
     materiList.innerHTML = `<p class="hint">Memuat...</p>`;
-    const snap = await withTimeout(getDocs(query(collection(db, "materi"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat materi");
+    const snap = await withTimeout(getDocs(query(collection(db, "materi"), where("pertemuanId", "==", pertemuanId))), 15000, "Memuat materi");
     materiRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     materiRows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 
@@ -225,7 +255,8 @@
     });
   }
 
-  kelasSelect.addEventListener("change", () => loadMateri().catch((err) => showPageMessage(err.message || "Gagal memuat materi.")));
+  kelasSelect.addEventListener("change", () => loadPertemuan().catch((err) => showPageMessage(err.message || "Gagal memuat pertemuan.")));
+  pertemuanSelect.addEventListener("change", () => loadMateri().catch((err) => showPageMessage(err.message || "Gagal memuat materi.")));
 
   document.addEventListener("click", async (e) => {
     const editBtn = e.target.closest('button[data-action="edit"]');
@@ -308,6 +339,7 @@
       } else {
         await withTimeout(addDoc(collection(db, "materi"), {
           kelasKuliahId: kelasSelect.value,
+          pertemuanId: pertemuanSelect.value,
           judul, deskripsi, isiMateri, fileUrl, videoUrl, published,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         }), 15000, "Simpan materi");

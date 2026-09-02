@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tugas - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=10">
+<link rel="stylesheet" href="../assets/style.css?v=11">
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <style>
@@ -37,17 +37,26 @@
 
   <main class="main">
     <div class="page-header">
-      <div><h1>Tugas</h1><p>Kelola tugas &amp; nilai untuk kelas yang Anda ampu.</p></div>
+      <div><h1>Tugas</h1><p>Tugas dikelompokkan per pertemuan.</p></div>
       <button id="addButton" class="button-primary" disabled>+ Tambah Tugas</button>
     </div>
 
     <div id="pageMessage" class="message"></div>
 
     <div class="card" style="margin-bottom:20px;">
-      <div class="form-group" style="margin-bottom:0;">
-        <label for="kelasSelect">Pilih Kelas</label>
-        <select id="kelasSelect"></select>
+      <div class="form-grid-2">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="kelasSelect">Pilih Kelas</label>
+          <select id="kelasSelect"></select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="pertemuanSelect">Pilih Pertemuan</label>
+          <select id="pertemuanSelect"></select>
+        </div>
       </div>
+      <p class="hint" id="noPertemuanHint" style="margin-top:10px; display:none;">
+        Belum ada pertemuan untuk kelas ini. Buat pertemuan dulu di menu <a href="presensi.html">Presensi</a>.
+      </p>
     </div>
 
     <div class="card">
@@ -108,10 +117,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=10";
-  import { db } from "../assets/firebase-config.js?v=10";
-  import { withTimeout } from "../assets/with-timeout.js?v=10";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=11";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=11";
+  import { db } from "../assets/firebase-config.js?v=11";
+  import { withTimeout } from "../assets/with-timeout.js?v=11";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc, getDocs, query, where, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -185,6 +194,8 @@
   }
 
   const kelasSelect = document.getElementById("kelasSelect");
+  const pertemuanSelect = document.getElementById("pertemuanSelect");
+  const noPertemuanHint = document.getElementById("noPertemuanHint");
   const addButton = document.getElementById("addButton");
   let tugasRows = [];
   let pesertaKelas = []; // { uid, nama, nim }
@@ -208,7 +219,30 @@
       return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
     }).join("");
 
+    await loadPertemuan();
+  }
+
+  async function loadPertemuan() {
+    const kelasId = kelasSelect.value;
+    if (!kelasId) return;
+
+    const snap = await withTimeout(getDocs(query(collection(db, "pertemuan"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat pertemuan");
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.pertemuanKe || 0) - (b.pertemuanKe || 0));
+
+    if (rows.length === 0) {
+      pertemuanSelect.innerHTML = `<option value="">Belum ada pertemuan</option>`;
+      noPertemuanHint.style.display = "block";
+      addButton.disabled = true;
+      document.getElementById("tugasList").innerHTML = "";
+      document.getElementById("tugasEmpty").style.display = "none";
+      return;
+    }
+
+    noPertemuanHint.style.display = "none";
     addButton.disabled = false;
+    pertemuanSelect.innerHTML = rows.map((p) => `<option value="${p.id}">Pertemuan ${escapeHtml(p.pertemuanKe)}${p.judul ? " - " + escapeHtml(p.judul) : ""}</option>`).join("");
+
     await loadTugas();
   }
 
@@ -221,13 +255,13 @@
   }
 
   async function loadTugas() {
-    const kelasId = kelasSelect.value;
+    const pertemuanId = pertemuanSelect.value;
     const tugasList = document.getElementById("tugasList");
     const tugasEmpty = document.getElementById("tugasEmpty");
-    if (!kelasId) { tugasList.innerHTML = ""; return; }
+    if (!pertemuanId) { tugasList.innerHTML = ""; return; }
 
     tugasList.innerHTML = `<p class="hint">Memuat...</p>`;
-    const snap = await withTimeout(getDocs(query(collection(db, "tugas"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat tugas");
+    const snap = await withTimeout(getDocs(query(collection(db, "tugas"), where("pertemuanId", "==", pertemuanId))), 15000, "Memuat tugas");
     tugasRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     tugasRows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 
@@ -253,7 +287,8 @@
     });
   }
 
-  kelasSelect.addEventListener("change", () => loadTugas().catch((err) => showPageMessage(err.message || "Gagal memuat tugas.")));
+  kelasSelect.addEventListener("change", () => loadPertemuan().catch((err) => showPageMessage(err.message || "Gagal memuat pertemuan.")));
+  pertemuanSelect.addEventListener("change", () => loadTugas().catch((err) => showPageMessage(err.message || "Gagal memuat tugas.")));
 
   document.addEventListener("click", async (e) => {
     const editBtn = e.target.closest('button[data-action="edit"]');
@@ -340,6 +375,7 @@
       } else {
         await withTimeout(addDoc(collection(db, "tugas"), {
           kelasKuliahId: kelasSelect.value,
+          pertemuanId: pertemuanSelect.value,
           judul, instruksi, fileUrl, deadline, maxScore, published,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         }), 15000, "Simpan tugas");
