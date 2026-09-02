@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=8">
+<link rel="stylesheet" href="../assets/style.css?v=9">
 </head>
 <body>
 
@@ -38,8 +38,7 @@
 
     <div class="page-header">
       <div>
-        <h1 id="greeting">Dashboard</h1>
-        <p>Ringkasan mengajar Anda di SIKADU.</p>
+        <h1>Dashboard</h1>
       </div>
     </div>
 
@@ -106,6 +105,11 @@
         <div class="form-group"><label for="noWa">No. WhatsApp</label><input type="text" id="noWa"></div>
       </div>
       <div class="form-group"><label for="bidangKeahlian">Bidang Keahlian</label><input type="text" id="bidangKeahlian"></div>
+      <div class="form-group">
+        <label for="foto">Link Foto Profil</label>
+        <input type="url" id="foto" placeholder="https://i.imgur.com/... atau https://res.cloudinary.com/...">
+        <p class="hint">Upload dulu ke Imgur/Cloudinary, lalu tempel link gambarnya di sini.</p>
+      </div>
       <p class="hint">NIDN dan username login tidak bisa diubah sendiri. Hubungi admin kalau ada kesalahan.</p>
       <div class="modal-actions">
         <button type="button" class="button-secondary" id="cancelButton">Batal</button>
@@ -133,11 +137,11 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=8";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=8";
-  import { db } from "../assets/firebase-config.js?v=8";
-  import { withTimeout } from "../assets/with-timeout.js?v=8";
-  import { changeOwnPassword } from "../assets/change-password.js?v=8";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=9";
+  import { db } from "../assets/firebase-config.js?v=9";
+  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { changeOwnPassword } from "../assets/change-password.js?v=9";
   import {
     doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -156,7 +160,6 @@
   const { uid, profile } = await guardPage("dosen");
   document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
   document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
-  document.getElementById("greeting").textContent = `Halo, ${profile.nama || profile.username}`;
   document.getElementById("logoutButton").addEventListener("click", logout);
 
   const pageMessage = document.getElementById("pageMessage");
@@ -177,7 +180,19 @@
   function renderProfile() {
     const nama = dosenData.nama || profile.nama || profile.username;
     document.getElementById("profileNama").textContent = nama;
-    document.getElementById("profileAvatar").textContent = initials(nama);
+
+    const avatarEl = document.getElementById("profileAvatar");
+    if (dosenData.foto) {
+      avatarEl.innerHTML = `<img src="${dosenData.foto}" alt="Foto ${nama}" onerror="this.parentElement.textContent='${initials(nama)}';">`;
+    } else {
+      avatarEl.textContent = initials(nama);
+    }
+
+    const sidebarAvatarEl = document.getElementById("sidebarAvatar");
+    if (dosenData.foto) {
+      sidebarAvatarEl.innerHTML = `<img src="${dosenData.foto}" alt="Foto ${nama}" onerror="this.parentElement.textContent='${initials(nama)}';">`;
+    }
+
     document.getElementById("profileBidang").textContent = dosenData.bidangKeahlian || "Bidang keahlian belum diisi";
     document.getElementById("metaNidn").textContent = dosenData.nidn || "-";
     document.getElementById("metaEmail").textContent = dosenData.email || "-";
@@ -257,6 +272,7 @@
     document.getElementById("email").value = dosenData.email || "";
     document.getElementById("noWa").value = dosenData.noWa || "";
     document.getElementById("bidangKeahlian").value = dosenData.bidangKeahlian || "";
+    document.getElementById("foto").value = dosenData.foto || "";
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
@@ -275,16 +291,17 @@
     const email = document.getElementById("email").value.trim();
     const noWa = document.getElementById("noWa").value.trim();
     const bidangKeahlian = document.getElementById("bidangKeahlian").value.trim();
+    const foto = document.getElementById("foto").value.trim();
 
     saveButton.disabled = true;
     saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
 
     try {
       await withTimeout(updateDoc(doc(db, "dosen", uid), {
-        nama, email, noWa, bidangKeahlian, updatedAt: serverTimestamp(),
+        nama, email, noWa, bidangKeahlian, foto, updatedAt: serverTimestamp(),
       }), 15000, "Simpan profil");
 
-      dosenData = { ...dosenData, nama, email, noWa, bidangKeahlian };
+      dosenData = { ...dosenData, nama, email, noWa, bidangKeahlian, foto };
       renderProfile();
       closeModal();
       showPageMessage("Profil berhasil diperbarui.", "success");
