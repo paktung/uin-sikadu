@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Aturan ini contoh awal, sesuaikan lagi sebelum production.
+// Pasang lewat Firebase Console > Firestore Database > Rules,
+// atau `firebase deploy --only firestore:rules` kalau pakai Firebase CLI.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myProfile().level == 'admin' && myProfile().isActive == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------- users ----------------
+    match /users/{uid} {
+      // Bootstrap: izinkan pembuatan akun admin PERTAMA saat koleksi masih kosong.
+      // Setelah admin pertama ada, hanya admin yang boleh membuat/mengubah user lain.
+      allow create: if (isOwner(uid) && request.resource.data.level == 'admin'
+                          && !exists(/databases/$(database)/documents/users/$(uid)))
+                    || isAdmin();
+      allow read:   if isOwner(uid) || isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && request.resource.data.level == resource.data.level);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- dosen & mahasiswa profiles ----------------
+    match /dosen/{uid} {
+      allow read:   if isSignedIn();
+      allow write:  if isAdmin() || isOwner(uid);
+    }
+
+    match /mahasiswa/{uid} {
+      allow read:   if isSignedIn();
+      allow write:  if isAdmin() || isOwner(uid);
+    }
+
+    // ---------------- everything else (materi, tugas, nilai, dst) ----------------
+    // Placeholder ketat: tolak dulu semua akses ke koleksi lain sampai
+    // masing-masing dirancang aturannya saat folder dosen/mahasiswa dibangun.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
