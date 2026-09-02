@@ -82,6 +82,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -130,11 +131,11 @@
   const tahunLabel = (id) => { const t = tahunList.find((t) => t.id === id); return t ? `${t.tahun} ${t.semester}` : "-"; };
 
   async function loadReferences() {
-    const [mkSnap, dosenSnap, tahunSnap] = await Promise.all([
+    const [mkSnap, dosenSnap, tahunSnap] = await withTimeout(Promise.all([
       getDocs(query(collection(db, "mataKuliah"), orderBy("nama"))),
       getDocs(query(collection(db, "dosen"), orderBy("nama"))),
       getDocs(query(collection(db, "tahunAkademik"), orderBy("tahun", "desc"))),
-    ]);
+    ]), 15000, "Memuat data referensi");
     mataKuliahList = []; mkSnap.forEach((d) => mataKuliahList.push({ id: d.id, ...d.data() }));
     dosenList = []; dosenSnap.forEach((d) => dosenList.push({ id: d.id, ...d.data() }));
     tahunList = []; tahunSnap.forEach((d) => tahunList.push({ id: d.id, ...d.data() }));
@@ -159,7 +160,7 @@
   async function loadData() {
     tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
     await loadReferences();
-    const snap = await getDocs(query(collection(db, "kelasKuliah"), orderBy("kodeKelas")));
+    const snap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), orderBy("kodeKelas"))), 15000, "Memuat data kelas kuliah");
     allRows = [];
     snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
     renderTable();
@@ -206,7 +207,7 @@
     if (btn.dataset.action === "delete") {
       if (!confirm(`Hapus kelas "${row.kodeKelas}"?`)) return;
       try {
-        await deleteDoc(doc(db, "kelasKuliah", row.id));
+        await withTimeout(deleteDoc(doc(db, "kelasKuliah", row.id)), 15000, "Hapus data");
         showPageMessage(`Kelas berhasil dihapus.`, "success");
         loadData();
       } catch (err) {
@@ -234,6 +235,7 @@
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   addButton.addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -273,10 +275,10 @@
     try {
       const payload = { mataKuliahId, dosenId, tahunAkademikId, kodeKelas, kapasitas, updatedAt: serverTimestamp() };
       if (editingId) {
-        await updateDoc(doc(db, "kelasKuliah", editingId), payload);
+        await withTimeout(updateDoc(doc(db, "kelasKuliah", editingId), payload), 15000, "Simpan kelas kuliah");
         showPageMessage(`Kelas berhasil diperbarui.`, "success");
       } else {
-        await addDoc(collection(db, "kelasKuliah"), { ...payload, createdAt: serverTimestamp() });
+        await withTimeout(addDoc(collection(db, "kelasKuliah"), { ...payload, createdAt: serverTimestamp() }), 15000, "Simpan kelas kuliah");
         showPageMessage(`Kelas berhasil dibuka.`, "success");
       }
       closeModal();

@@ -66,6 +66,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -103,7 +104,7 @@
 
   async function loadData() {
     tableBody.innerHTML = `<tr><td colspan="3" class="empty-state">Memuat data...</td></tr>`;
-    const snap = await getDocs(query(collection(db, "fakultas"), orderBy("nama")));
+    const snap = await withTimeout(getDocs(query(collection(db, "fakultas"), orderBy("nama"))), 15000, "Memuat data fakultas");
     allRows = [];
     snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
     renderTable();
@@ -143,7 +144,7 @@
     if (btn.dataset.action === "delete") {
       if (!confirm(`Hapus fakultas "${row.nama}"? Program studi yang mengacu ke fakultas ini tidak akan otomatis terhapus.`)) return;
       try {
-        await deleteDoc(doc(db, "fakultas", row.id));
+        await withTimeout(deleteDoc(doc(db, "fakultas", row.id)), 15000, "Hapus fakultas");
         showPageMessage(`Fakultas "${row.nama}" berhasil dihapus.`, "success");
         loadData();
       } catch (err) {
@@ -168,6 +169,7 @@
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   document.getElementById("addButton").addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -186,10 +188,10 @@
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, "fakultas", editingId), { nama, kode, updatedAt: serverTimestamp() });
+        await withTimeout(updateDoc(doc(db, "fakultas", editingId), { nama, kode, updatedAt: serverTimestamp() }), 15000, "Simpan fakultas");
         showPageMessage(`Fakultas "${nama}" berhasil diperbarui.`, "success");
       } else {
-        await addDoc(collection(db, "fakultas"), { nama, kode, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        await withTimeout(addDoc(collection(db, "fakultas"), { nama, kode, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }), 15000, "Simpan fakultas");
         showPageMessage(`Fakultas "${nama}" berhasil ditambahkan.`, "success");
       }
       closeModal();

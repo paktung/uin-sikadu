@@ -72,6 +72,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, query, where, getCountFromServer, getDocs,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -89,7 +90,7 @@
   document.getElementById("logoutButton").addEventListener("click", logout);
 
   async function loadStats() {
-    const [fakultas, prodi, mataKuliah, kelas, dosen, mahasiswa, tahunSnap] = await Promise.all([
+    const [fakultas, prodi, mataKuliah, kelas, dosen, mahasiswa, tahunSnap] = await withTimeout(Promise.all([
       getCountFromServer(collection(db, "fakultas")),
       getCountFromServer(collection(db, "programStudi")),
       getCountFromServer(collection(db, "mataKuliah")),
@@ -97,7 +98,7 @@
       getCountFromServer(collection(db, "dosen")),
       getCountFromServer(collection(db, "mahasiswa")),
       getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))),
-    ]);
+    ]), 15000, "Memuat statistik dashboard");
 
     document.getElementById("statFakultas").textContent = fakultas.data().count;
     document.getElementById("statProdi").textContent = prodi.data().count;

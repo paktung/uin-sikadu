@@ -152,6 +152,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import { createAuthUser } from "../assets/create-auth-user.js";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
@@ -198,10 +199,10 @@
   async function loadMahasiswa() {
     tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
 
-    const [mhsSnap, usersSnap] = await Promise.all([
+    const [mhsSnap, usersSnap] = await withTimeout(Promise.all([
       getDocs(query(collection(db, "mahasiswa"), orderBy("nama"))),
       getDocs(collection(db, "users")),
-    ]);
+    ]), 15000, "Memuat data mahasiswa");
 
     const usersById = {};
     usersSnap.forEach((d) => { usersById[d.id] = d.data(); });
@@ -272,7 +273,7 @@
       if (!confirm(`Yakin ingin ${label} akun ${row.mhs.nama}?`)) return;
 
       try {
-        await updateDoc(doc(db, "users", uid), { isActive: !currentlyActive, updatedAt: serverTimestamp() });
+        await withTimeout(updateDoc(doc(db, "users", uid), { isActive: !currentlyActive, updatedAt: serverTimestamp() }), 15000, "Ubah status akun");
         showPageMessage(`Akun ${row.mhs.nama} berhasil di-${currentlyActive ? "nonaktifkan" : "aktifkan"}.`, "success");
         loadMahasiswa();
       } catch (err) {
@@ -317,6 +318,7 @@
   function closeModal() {
     modalBackdrop.classList.remove("open");
   }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   document.getElementById("addButton").addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -344,10 +346,10 @@
     try {
       if (editingUid) {
         // ---- UPDATE (tidak mengubah username/password) ----
-        await updateDoc(doc(db, "mahasiswa", editingUid), {
+        await withTimeout(updateDoc(doc(db, "mahasiswa", editingUid), {
           nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
           updatedAt: serverTimestamp(),
-        });
+        }), 15000, "Simpan data mahasiswa");
         showPageMessage(`Data ${nama} berhasil diperbarui.`, "success");
       } else {
         // ---- CREATE (Auth user baru + dokumen users & mahasiswa) ----
@@ -362,21 +364,21 @@
         }
 
         const email_ = `${username}@sikadu.local`;
-        const uid = await createAuthUser(email_, password);
+        const uid = await withTimeout(createAuthUser(email_, password), 15000, "Membuat akun login");
 
-        await setDoc(doc(db, "users", uid), {
+        await withTimeout(setDoc(doc(db, "users", uid), {
           username,
           level: "mahasiswa",
           isActive: true,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        }), 15000, "Simpan profil akun");
 
-        await setDoc(doc(db, "mahasiswa", uid), {
+        await withTimeout(setDoc(doc(db, "mahasiswa", uid), {
           nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        }), 15000, "Simpan profil mahasiswa");
 
         showPageMessage(`Mahasiswa ${nama} berhasil ditambahkan.`, "success");
       }

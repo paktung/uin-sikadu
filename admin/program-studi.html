@@ -84,6 +84,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -128,7 +129,7 @@
   }
 
   async function loadFakultas() {
-    const snap = await getDocs(query(collection(db, "fakultas"), orderBy("nama")));
+    const snap = await withTimeout(getDocs(query(collection(db, "fakultas"), orderBy("nama"))), 15000, "Memuat data fakultas");
     fakultasList = [];
     snap.forEach((d) => fakultasList.push({ id: d.id, ...d.data() }));
 
@@ -144,7 +145,7 @@
   async function loadData() {
     tableBody.innerHTML = `<tr><td colspan="5" class="empty-state">Memuat data...</td></tr>`;
     await loadFakultas();
-    const snap = await getDocs(query(collection(db, "programStudi"), orderBy("nama")));
+    const snap = await withTimeout(getDocs(query(collection(db, "programStudi"), orderBy("nama"))), 15000, "Memuat data program studi");
     allRows = [];
     snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
     renderTable();
@@ -186,7 +187,7 @@
     if (btn.dataset.action === "delete") {
       if (!confirm(`Hapus program studi "${row.nama}"?`)) return;
       try {
-        await deleteDoc(doc(db, "programStudi", row.id));
+        await withTimeout(deleteDoc(doc(db, "programStudi", row.id)), 15000, "Hapus data");
         showPageMessage(`Program studi "${row.nama}" berhasil dihapus.`, "success");
         loadData();
       } catch (err) {
@@ -213,6 +214,7 @@
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   addButton.addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -235,10 +237,10 @@
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, "programStudi", editingId), { nama, kode, jenjang, fakultasId, updatedAt: serverTimestamp() });
+        await withTimeout(updateDoc(doc(db, "programStudi", editingId), { nama, kode, jenjang, fakultasId, updatedAt: serverTimestamp() }), 15000, "Simpan program studi");
         showPageMessage(`Program studi "${nama}" berhasil diperbarui.`, "success");
       } else {
-        await addDoc(collection(db, "programStudi"), { nama, kode, jenjang, fakultasId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        await withTimeout(addDoc(collection(db, "programStudi"), { nama, kode, jenjang, fakultasId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }), 15000, "Simpan program studi");
         showPageMessage(`Program studi "${nama}" berhasil ditambahkan.`, "success");
       }
       closeModal();

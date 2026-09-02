@@ -81,6 +81,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp, writeBatch,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -118,7 +119,7 @@
 
   async function loadData() {
     tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
-    const snap = await getDocs(query(collection(db, "tahunAkademik"), orderBy("tahun", "desc")));
+    const snap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), orderBy("tahun", "desc"))), 15000, "Memuat data tahun akademik");
     allRows = [];
     snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
     renderTable();
@@ -161,7 +162,7 @@
     if (btn.dataset.action === "delete") {
       if (!confirm(`Hapus tahun akademik "${row.tahun} - ${row.semester}"?`)) return;
       try {
-        await deleteDoc(doc(db, "tahunAkademik", row.id));
+        await withTimeout(deleteDoc(doc(db, "tahunAkademik", row.id)), 15000, "Hapus data");
         showPageMessage(`Tahun akademik berhasil dihapus.`, "success");
         loadData();
       } catch (err) {
@@ -189,6 +190,7 @@
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   document.getElementById("addButton").addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -218,15 +220,15 @@
             batch.update(doc(db, "tahunAkademik", r.id), { isActive: false, updatedAt: serverTimestamp() });
           }
         });
-        await batch.commit();
+        await withTimeout(batch.commit(), 15000, "Menonaktifkan periode lain");
       }
 
       const payload = { tahun, semester, tanggalMulai, tanggalSelesai, isActive, updatedAt: serverTimestamp() };
       if (editingId) {
-        await updateDoc(doc(db, "tahunAkademik", editingId), payload);
+        await withTimeout(updateDoc(doc(db, "tahunAkademik", editingId), payload), 15000, "Simpan tahun akademik");
         showPageMessage(`Tahun akademik berhasil diperbarui.`, "success");
       } else {
-        await addDoc(collection(db, "tahunAkademik"), { ...payload, createdAt: serverTimestamp() });
+        await withTimeout(addDoc(collection(db, "tahunAkademik"), { ...payload, createdAt: serverTimestamp() }), 15000, "Simpan tahun akademik");
         showPageMessage(`Tahun akademik berhasil ditambahkan.`, "success");
       }
       closeModal();

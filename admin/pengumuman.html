@@ -70,6 +70,7 @@
   import { guardPage, logout } from "../assets/auth-guard.js";
   import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
+  import { withTimeout } from "../assets/with-timeout.js";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -111,7 +112,7 @@
 
   async function loadData() {
     tableBody.innerHTML = `<tr><td colspan="4" class="empty-state">Memuat data...</td></tr>`;
-    const snap = await getDocs(query(collection(db, "pengumuman"), orderBy("createdAt", "desc")));
+    const snap = await withTimeout(getDocs(query(collection(db, "pengumuman"), orderBy("createdAt", "desc"))), 15000, "Memuat data pengumuman");
     allRows = [];
     snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
     renderTable();
@@ -152,7 +153,7 @@
     if (btn.dataset.action === "delete") {
       if (!confirm(`Hapus pengumuman "${row.judul}"?`)) return;
       try {
-        await deleteDoc(doc(db, "pengumuman", row.id));
+        await withTimeout(deleteDoc(doc(db, "pengumuman", row.id)), 15000, "Hapus data");
         showPageMessage(`Pengumuman berhasil dihapus.`, "success");
         loadData();
       } catch (err) {
@@ -178,6 +179,7 @@
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
   document.getElementById("addButton").addEventListener("click", () => openModal());
   document.getElementById("modalClose").addEventListener("click", closeModal);
@@ -197,10 +199,10 @@
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, "pengumuman", editingId), { judul, isi, published, updatedAt: serverTimestamp() });
+        await withTimeout(updateDoc(doc(db, "pengumuman", editingId), { judul, isi, published, updatedAt: serverTimestamp() }), 15000, "Simpan pengumuman");
         showPageMessage(`Pengumuman berhasil diperbarui.`, "success");
       } else {
-        await addDoc(collection(db, "pengumuman"), { judul, isi, published, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        await withTimeout(addDoc(collection(db, "pengumuman"), { judul, isi, published, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }), 15000, "Simpan pengumuman");
         showPageMessage(`Pengumuman berhasil dibuat.`, "success");
       }
       closeModal();
