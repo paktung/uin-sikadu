@@ -40,33 +40,27 @@ body {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
-  background:
-    repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
-    repeating-linear-gradient(-45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
-    radial-gradient(circle at 10% 10%, rgba(26, 155, 98, .35), transparent 35%),
-    radial-gradient(circle at 90% 90%, rgba(201, 162, 75, .18), transparent 35%),
-    linear-gradient(135deg, var(--ink), var(--ink-2));
+  background-image: url("uin-gusdur-01.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: var(--ink);
 }
-/* Watermark logo UIN Gus Dur, redup di belakang konten. File JPG tidak
-   punya transparansi asli, jadi "transparan" disimulasikan lewat opacity
-   rendah di sini. Kalau punya versi PNG-nya, hasilnya akan lebih bersih. */
-.brand-bg::before,
-.app-shell::before {
+/* Overlay gelap transparan di atas foto, supaya teks & kartu putih tetap
+   kebaca dan nuansa hijau islami-nya tetap kerasa - bukan foto polos. */
+.brand-bg::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("uin-gusdur-01.jpg");
-  background-position: center;
-  background-size: min(60%, 480px);
-  background-repeat: no-repeat;
-  opacity: 0.05;
-  pointer-events: none;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 26px),
+    radial-gradient(circle at 10% 10%, rgba(26, 155, 98, .45), transparent 35%),
+    radial-gradient(circle at 90% 90%, rgba(201, 162, 75, .22), transparent 35%),
+    linear-gradient(135deg, rgba(6,35,26,.88), rgba(12,61,44,.88));
   z-index: 0;
 }
 .brand-bg > * { position: relative; z-index: 1; }
-.app-shell { position: relative; }
-.app-shell::before { background-size: min(45%, 420px); opacity: 0.04; }
-.app-shell > * { position: relative; z-index: 1; }
 
 .gradient-text,
 .logo,
