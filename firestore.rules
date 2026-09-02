@@ -47,18 +47,20 @@ service cloud.firestore {
     }
 
     // ---------------- master data akademik ----------------
-    // fakultas, programStudi, mataKuliah, tahunAkademik, kelasKuliah,
-    // pengumuman: semuanya SUDAH tercakup oleh catch-all admin-only di
-    // bawah (match /{document=**}). Tidak perlu blok terpisah selama
-    // hanya admin yang boleh baca/tulis. Begitu dashboard dosen/mahasiswa
-    // dibangun dan mereka perlu ikut membaca (mis. jadwal, pengumuman),
-    // tambahkan blok match khusus per collection di sini dengan
-    // `allow read: if isSignedIn();` seperti pola /dosen dan /mahasiswa
-    // di atas, JANGAN taruh di catch-all.
+    // Dosen & mahasiswa perlu BACA data ini untuk dashboard mereka
+    // (kelas yang diampu/diambil, mata kuliah, tahun akademik aktif,
+    // pengumuman). Menulis/mengubah tetap admin-only.
+    match /fakultas/{id}      { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /programStudi/{id}  { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /mataKuliah/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /tahunAkademik/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /kelasKuliah/{id}   { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /pengumuman/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
 
     // ---------------- everything else (materi, tugas, nilai, dst) ----------------
     // Placeholder ketat: tolak dulu semua akses ke koleksi lain sampai
-    // masing-masing dirancang aturannya saat folder dosen/mahasiswa dibangun.
+    // masing-masing dirancang aturannya (KRS, nilai, presensi, dst - tahap
+    // berikutnya).
     match /{document=**} {
       allow read, write: if isAdmin();
     }
