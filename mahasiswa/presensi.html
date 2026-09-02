@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Presensi - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=9">
+<link rel="stylesheet" href="../assets/style.css?v=10">
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     </div>
 
     <div class="card">
-      <div style="overflow-x:auto;">
+      <div class="scroll-panel">
         <table class="data-table">
           <thead><tr><th>Pertemuan</th><th>Tanggal</th><th>Topik</th><th>Status</th></tr></thead>
           <tbody id="tableBody"></tbody>
@@ -61,10 +61,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
-  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=9";
-  import { db } from "../assets/firebase-config.js?v=9";
-  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=10";
+  import { db } from "../assets/firebase-config.js?v=10";
+  import { withTimeout } from "../assets/with-timeout.js?v=10";
   import {
     collection, doc, getDoc, getDocs, query, where,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";

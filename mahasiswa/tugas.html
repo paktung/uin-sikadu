@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tugas - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=9">
+<link rel="stylesheet" href="../assets/style.css?v=10">
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<style>
+  .ql-editor { min-height: 140px; font-size: 14px; background: white; }
+  .ql-toolbar.ql-snow { border-radius: 12px 12px 0 0; border-color: var(--border); }
+  .ql-container.ql-snow { border-radius: 0 0 12px 12px; border-color: var(--border); }
+  .html-source-textarea { display: none; width: 100%; min-height: 180px; font-family: monospace; font-size: 12.5px; }
+</style>
 </head>
 <body>
 
@@ -42,7 +50,7 @@
     </div>
 
     <div class="card">
-      <div id="tugasList"></div>
+      <div id="tugasList" class="scroll-panel" style="max-height:55vh;"></div>
       <div id="tugasEmpty" class="empty-state" style="display:none;">Belum ada tugas untuk kelas ini.</div>
     </div>
   </main>
@@ -55,7 +63,14 @@
     <div id="modalMessage" class="message"></div>
     <div id="tugasDetail" class="hint" style="margin-bottom:14px;"></div>
     <form id="itemForm">
-      <div class="form-group"><label for="jawaban">Jawaban</label><textarea id="jawaban" rows="5"></textarea></div>
+      <div class="form-group">
+        <label>Jawaban</label>
+        <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+          <button type="button" id="toggleHtmlButton" class="button-ghost" style="padding:4px 10px; font-size:12px;">Edit sebagai kode HTML</button>
+        </div>
+        <div id="editorContainer"></div>
+        <textarea id="htmlSource" class="html-source-textarea" placeholder="&lt;p&gt;Tulis HTML di sini...&lt;/p&gt;"></textarea>
+      </div>
       <div class="form-group"><label for="fileUrl">Link Lampiran (opsional)</label><input type="url" id="fileUrl" placeholder="https://..."></div>
       <div class="modal-actions">
         <button type="button" class="button-secondary" id="cancelButton">Batal</button>
@@ -66,10 +81,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
-  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=9";
-  import { db } from "../assets/firebase-config.js?v=9";
-  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=10";
+  import { db } from "../assets/firebase-config.js?v=10";
+  import { withTimeout } from "../assets/with-timeout.js?v=10";
   import {
     collection, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -85,6 +100,50 @@
   function fmtDeadline(iso) {
     if (!iso) return "Tanpa deadline";
     return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // ---------- editor WYSIWYG (Quill) untuk jawaban ----------
+  const quill = new Quill("#editorContainer", {
+    theme: "snow",
+    modules: {
+      toolbar: [
+        [{ header: [2, 3, false] }],
+        ["bold", "italic", "underline"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link", "image"],
+        ["clean"],
+      ],
+    },
+  });
+  const htmlSourceEl = document.getElementById("htmlSource");
+  const toggleHtmlButton = document.getElementById("toggleHtmlButton");
+  let htmlMode = false;
+
+  toggleHtmlButton.addEventListener("click", () => {
+    htmlMode = !htmlMode;
+    if (htmlMode) {
+      htmlSourceEl.value = quill.root.innerHTML;
+      document.getElementById("editorContainer").parentElement.querySelector(".ql-toolbar").style.display = "none";
+      quill.root.parentElement.style.display = "none";
+      htmlSourceEl.style.display = "block";
+      toggleHtmlButton.textContent = "Kembali ke editor visual";
+    } else {
+      quill.root.innerHTML = htmlSourceEl.value;
+      document.getElementById("editorContainer").parentElement.querySelector(".ql-toolbar").style.display = "";
+      quill.root.parentElement.style.display = "";
+      htmlSourceEl.style.display = "none";
+      toggleHtmlButton.textContent = "Edit sebagai kode HTML";
+    }
+  });
+
+  function getJawabanHtml() { return htmlMode ? htmlSourceEl.value : quill.root.innerHTML; }
+  function setJawabanHtml(html) {
+    quill.root.innerHTML = html || "";
+    htmlSourceEl.value = html || "";
+    if (htmlMode) { toggleHtmlButton.click(); }
+  }
+  function jawabanIsEmpty() {
+    return quill.getText().trim().length === 0 && !htmlMode;
   }
 
   renderMahasiswaNav("tugas.html");
@@ -167,7 +226,7 @@
           <div>
             <div class="title">${escapeHtml(t.judul)} ${statusBadge}</div>
             <div class="meta"><span>Deadline: ${fmtDeadline(t.deadline)}</span></div>
-            ${t.instruksi ? `<p style="font-size:13.5px; margin-top:6px; white-space:pre-wrap;">${escapeHtml(t.instruksi)}</p>` : ""}
+            ${t.instruksi ? `<div class="materi-content" style="font-size:13.5px; margin-top:6px;">${t.instruksi}</div>` : ""}
             ${t.fileUrl ? `<a href="${escapeHtml(t.fileUrl)}" target="_blank" rel="noopener" style="font-size:13px; color:var(--accent-2); font-weight:600;">📄 Lihat Lampiran Tugas</a>` : ""}
           </div>
           <button class="button-secondary" data-action="submit" data-id="${t.id}">${sub ? "Ubah Jawaban" : "Kumpulkan"}</button>
@@ -204,12 +263,13 @@
     const t = tugasRows.find((r) => r.id === activeTugasId);
     itemForm.reset();
     showModalMessage("");
+    setJawabanHtml("");
     tugasDetail.textContent = `Deadline: ${fmtDeadline(t?.deadline)}`;
 
     try {
       const subSnap = await getDoc(doc(db, "tugasSubmission", `${activeTugasId}_${uid}`));
       if (subSnap.exists()) {
-        document.getElementById("jawaban").value = subSnap.data().jawaban || "";
+        setJawabanHtml(subSnap.data().jawaban || "");
         document.getElementById("fileUrl").value = subSnap.data().fileUrl || "";
         if (subSnap.data().score != null) {
           showModalMessage("Tugas ini sudah dinilai. Mengubah jawaban akan mengganti jawaban lama (nilai tetap tersimpan sampai dosen menilai ulang).", "warn");
@@ -223,10 +283,10 @@
   itemForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     showModalMessage("");
-    const jawaban = document.getElementById("jawaban").value.trim();
+    const jawaban = getJawabanHtml();
     const fileUrl = document.getElementById("fileUrl").value.trim();
 
-    if (!jawaban && !fileUrl) {
+    if (jawabanIsEmpty() && !fileUrl) {
       showModalMessage("Isi jawaban atau lampirkan link file.");
       return;
     }
