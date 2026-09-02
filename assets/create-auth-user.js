@@ -37,3 +37,32 @@ export async function createAuthUser(email, password) {
     await deleteApp(secondaryApp);
   }
 }
+
+// Versi batch: satu instance app kedua dipakai berulang untuk banyak akun
+// sekaligus (mis. import Excel puluhan mahasiswa), supaya tidak bikin+buang
+// app baru di setiap baris (lebih cepat & lebih ringan).
+//
+// Pemakaian:
+//   const batch = createAuthUserBatch();
+//   try {
+//     const uid1 = await batch.create(email1, password1);
+//     const uid2 = await batch.create(email2, password2);
+//   } finally {
+//     await batch.dispose();
+//   }
+export function createAuthUserBatch() {
+  const secondaryApp = initializeApp(firebaseConfig, `secondary-batch-${Date.now()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  return {
+    async create(email, password) {
+      const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const uid = credential.user.uid;
+      await signOut(secondaryAuth);
+      return uid;
+    },
+    async dispose() {
+      await deleteApp(secondaryApp);
+    },
+  };
+}
