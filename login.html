@@ -3,923 +3,190 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Login - SIKADU</title>
-
+<link rel="stylesheet" href="assets/style.css">
 <style>
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-body {
+  .login-wrap {
     min-height: 100vh;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 20px;
-
-    font-family:
-        Inter,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Arial,
-        sans-serif;
-
-    background:
-        radial-gradient(
-            circle at 10% 10%,
-            rgba(255, 107, 0, .35),
-            transparent 35%
-        ),
-        radial-gradient(
-            circle at 90% 90%,
-            rgba(255, 51, 102, .30),
-            transparent 35%
-        ),
-        linear-gradient(
-            135deg,
-            #111827,
-            #1f2937
-        );
-}
-
-
-/* =========================
-   LOGIN CARD
-========================= */
-
-.login-card {
-
+  }
+  .login-card {
     width: 100%;
     max-width: 420px;
-
     background: rgba(255,255,255,.97);
-
-    border-radius: 24px;
-
+    border-radius: var(--radius-lg);
     padding: 40px 35px;
-
-    box-shadow:
-        0 25px 70px rgba(0,0,0,.35);
-
+    box-shadow: 0 25px 70px rgba(0,0,0,.35);
     animation: cardIn .5s ease;
-}
-
-
-@keyframes cardIn {
-
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-}
-
-
-/* =========================
-   LOGO
-========================= */
-
-.logo {
-
-    width: 78px;
-    height: 78px;
-
-    margin: 0 auto 20px;
-
-    border-radius: 22px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    color: white;
-
-    font-size: 25px;
-    font-weight: 800;
-
-    background:
-        linear-gradient(
-            135deg,
-            #ff6b00,
-            #ff3366
-        );
-
-    box-shadow:
-        0 12px 30px rgba(255,80,50,.35);
-}
-
-
-h1 {
-
-    text-align: center;
-
-    font-size: 29px;
-
-    color: #111827;
-
-    margin-bottom: 8px;
-}
-
-
-.subtitle {
-
-    text-align: center;
-
-    color: #6b7280;
-
-    font-size: 14px;
-
-    line-height: 1.6;
-
-    margin-bottom: 30px;
-}
-
-
-/* =========================
-   MESSAGE
-========================= */
-
-.message {
-
-    display: none;
-
-    padding: 13px 15px;
-
-    border-radius: 12px;
-
-    margin-bottom: 20px;
-
-    font-size: 13px;
-
-    line-height: 1.5;
-}
-
-
-.message.error {
-
-    display: block;
-
-    background: #fee2e2;
-
-    color: #991b1b;
-}
-
-
-.message.success {
-
-    display: block;
-
-    background: #dcfce7;
-
-    color: #166534;
-}
-
-
-/* =========================
-   FORM
-========================= */
-
-.form-group {
-
-    margin-bottom: 20px;
-}
-
-
-label {
-
-    display: block;
-
-    margin-bottom: 8px;
-
-    font-size: 14px;
-
-    font-weight: 700;
-
-    color: #374151;
-}
-
-
-input {
-
-    width: 100%;
-
-    padding: 14px 16px;
-
-    border:
-        1px solid #d1d5db;
-
-    border-radius: 12px;
-
-    outline: none;
-
-    font-size: 15px;
-
-    transition: .2s;
-}
-
-
-input:focus {
-
-    border-color: #ff5a36;
-
-    box-shadow:
-        0 0 0 4px
-        rgba(255,90,54,.10);
-}
-
-
-/* PASSWORD */
-
-.password-wrapper {
-
-    position: relative;
-}
-
-
-.password-wrapper input {
-
-    padding-right: 90px;
-}
-
-
-.toggle-password {
-
-    position: absolute;
-
-    right: 12px;
-
-    top: 50%;
-
-    transform:
-        translateY(-50%);
-
-    border: none;
-
-    background: none;
-
-    color: #6b7280;
-
-    cursor: pointer;
-
-    font-size: 12px;
-
-    font-weight: 600;
-}
-
-
-/* =========================
-   BUTTON
-========================= */
-
-.login-button {
-
-    width: 100%;
-
-    padding: 15px;
-
-    border: none;
-
-    border-radius: 12px;
-
-    background:
-        linear-gradient(
-            135deg,
-            #ff6b00,
-            #ff3366
-        );
-
-    color: white;
-
-    font-size: 16px;
-
-    font-weight: 700;
-
-    cursor: pointer;
-
-    transition: .2s;
-}
-
-
-.login-button:hover {
-
-    transform:
-        translateY(-2px);
-
-    box-shadow:
-        0 10px 25px
-        rgba(255,80,50,.30);
-}
-
-
-.login-button:disabled {
-
-    opacity: .65;
-
-    cursor: not-allowed;
-
-    transform: none;
-}
-
-
-/* =========================
-   LOADING
-========================= */
-
-.loading {
-
-    display: inline-block;
-
-    width: 16px;
-    height: 16px;
-
-    border:
-        2px solid
-        rgba(255,255,255,.4);
-
-    border-top-color:
-        white;
-
-    border-radius: 50%;
-
-    animation:
-        spin .7s linear infinite;
-
-    vertical-align: middle;
-
-    margin-right: 8px;
-}
-
-
-@keyframes spin {
-
-    to {
-        transform: rotate(360deg);
-    }
-
-}
-
-
-/* =========================
-   FOOTER
-========================= */
-
-.footer {
-
-    text-align: center;
-
-    margin-top: 25px;
-
-    color: #9ca3af;
-
-    font-size: 12px;
-}
-
-
-@media(max-width:480px) {
-
-    .login-card {
-
-        padding: 32px 24px;
-
-        border-radius: 20px;
-    }
-
-    h1 {
-
-        font-size: 25px;
-    }
-
-}
-
+  }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
+  .login-card .logo { width: 78px; height: 78px; font-size: 25px; border-radius: 22px; margin: 0 auto 20px; }
+  .login-card h1 { text-align: center; font-size: 29px; margin-bottom: 8px; }
+  .login-card .subtitle { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
+  .login-card .button-primary { width: 100%; font-size: 16px; margin-top: 4px; }
+  .footer { text-align: center; margin-top: 25px; color: var(--muted-2); font-size: 12px; }
+  @media (max-width: 480px) {
+    .login-card { padding: 32px 24px; border-radius: 20px; }
+    .login-card h1 { font-size: 25px; }
+  }
 </style>
 </head>
+<body class="brand-bg">
 
+<div class="login-wrap">
+  <div class="login-card">
 
-<body>
-
-
-<div class="login-card">
-
-
-    <!-- LOGO -->
-
-    <div class="logo">
-        SK
-    </div>
-
-
-    <!-- TITLE -->
-
-    <h1>
-        SIKADU
-    </h1>
-
-
+    <div class="logo">SK</div>
+    <h1>SIKADU</h1>
     <div class="subtitle">
-
-        Sistem Informasi Akademik & Pembelajaran
-
-        <br>
-
-        <small>
-            Silakan masuk menggunakan NIM / Username
-        </small>
-
+      Sistem Informasi Akademik &amp; Pembelajaran
+      <br>
+      <small>Masuk menggunakan NIM / NIDN / Username</small>
     </div>
 
-
-    <!-- MESSAGE -->
-
-    <div
-        id="message"
-        class="message">
-    </div>
-
-
-    <!-- FORM -->
+    <div id="message" class="message"></div>
 
     <form id="loginForm">
+      <div class="form-group">
+        <label for="username">NIM / NIDN / Username</label>
+        <input
+          type="text"
+          id="username"
+          placeholder="Masukkan NIM, NIDN, atau username"
+          autocomplete="username"
+          required
+        >
+      </div>
 
-
-        <!-- USERNAME -->
-
-        <div class="form-group">
-
-            <label for="username">
-                NIM / Username
-            </label>
-
-            <input
-                type="text"
-                id="username"
-                placeholder="Masukkan NIM atau username"
-                autocomplete="username"
-                required
-            >
-
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="password"
+            placeholder="Masukkan password"
+            autocomplete="current-password"
+            required
+          >
+          <button type="button" id="togglePassword" class="toggle-password">Tampilkan</button>
         </div>
+      </div>
 
-
-        <!-- PASSWORD -->
-
-        <div class="form-group">
-
-            <label for="password">
-                Password
-            </label>
-
-
-            <div class="password-wrapper">
-
-                <input
-                    type="password"
-                    id="password"
-                    placeholder="Masukkan password"
-                    autocomplete="current-password"
-                    required
-                >
-
-
-                <button
-                    type="button"
-                    id="togglePassword"
-                    class="toggle-password">
-
-                    Tampilkan
-
-                </button>
-
-            </div>
-
-        </div>
-
-
-        <!-- LOGIN BUTTON -->
-
-        <button
-            type="submit"
-            id="loginButton"
-            class="login-button">
-
-            Masuk
-
-        </button>
-
-
+      <button type="submit" id="loginButton" class="button-primary">Masuk</button>
     </form>
 
+    <div class="footer">© 2026 SIKADU</div>
 
-    <div class="footer">
-
-        © 2026 SIKADU
-
-    </div>
-
-
+  </div>
 </div>
 
-
-
 <script type="module">
+  import { auth, db, usernameToEmail, ROLE_HOME } from "./assets/firebase-config.js";
+  import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  const form = document.getElementById("loginForm");
+  const usernameInput = document.getElementById("username");
+  const passwordInput = document.getElementById("password");
+  const loginButton = document.getElementById("loginButton");
+  const message = document.getElementById("message");
+  const togglePassword = document.getElementById("togglePassword");
 
-/* =====================================================
-   FIREBASE SDK
-===================================================== */
+  // Pesan dari redirect (mis. akun dinonaktifkan, sesi habis, dsb.)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("error") === "inactive") {
+    showMessage("Akun Anda telah dinonaktifkan. Hubungi admin.");
+  } else if (params.get("error") === "no-profile") {
+    showMessage("Data akun tidak lengkap. Hubungi admin.");
+  }
 
-import {
-    initializeApp
-}
-from
-"https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  togglePassword.addEventListener("click", () => {
+    const isHidden = passwordInput.type === "password";
+    passwordInput.type = isHidden ? "text" : "password";
+    togglePassword.textContent = isHidden ? "Sembunyikan" : "Tampilkan";
+  });
 
+  function showMessage(text, type = "error") {
+    message.textContent = text;
+    message.className = `message ${type}`;
+  }
 
-import {
-    getAuth,
-    signInWithEmailAndPassword
-}
-from
-"https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  function setLoading(isLoading) {
+    loginButton.disabled = isLoading;
+    loginButton.innerHTML = isLoading
+      ? `<span class="loading"></span> Memproses...`
+      : "Masuk";
+  }
 
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
 
-/* =====================================================
-   FIREBASE CONFIG
-===================================================== */
+    if (!username) { showMessage("NIM/NIDN/Username wajib diisi."); return; }
+    if (!password) { showMessage("Password wajib diisi."); return; }
 
-const firebaseConfig = {
+    const email = usernameToEmail(username);
+    setLoading(true);
 
-    apiKey:
-        "AIzaSyCFtcNow9EGQlxhoX6jJKM97v40y1DdUjA",
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const user = credential.user;
 
-    authDomain:
-        "uin-sikadu.firebaseapp.com",
+      const profileRef = doc(db, "users", user.uid);
+      const profileSnap = await getDoc(profileRef);
 
-    databaseURL:
-        "https://uin-sikadu-default-rtdb.asia-southeast1.firebasedatabase.app",
+      if (!profileSnap.exists()) {
+        await signOut(auth);
+        showMessage("Data profil akun tidak ditemukan. Hubungi admin.");
+        setLoading(false);
+        return;
+      }
 
-    projectId:
-        "uin-sikadu",
+      const profile = profileSnap.data();
 
-    storageBucket:
-        "uin-sikadu.firebasestorage.app",
+      if (profile.isActive === false) {
+        await signOut(auth);
+        showMessage("Akun Anda telah dinonaktifkan. Hubungi admin.");
+        setLoading(false);
+        return;
+      }
 
-    messagingSenderId:
-        "58411098315",
+      const target = ROLE_HOME[profile.level];
+      if (!target) {
+        await signOut(auth);
+        showMessage("Akun ini belum memiliki peran (level) yang valid. Hubungi admin.");
+        setLoading(false);
+        return;
+      }
 
-    appId:
-        "1:58411098315:web:f6092b636caa482872bb4e"
+      // Catat waktu login terakhir, tapi jangan sampai gagalnya update ini
+      // menghalangi user untuk tetap masuk.
+      updateDoc(profileRef, { lastLoginAt: serverTimestamp() }).catch(() => {});
 
-};
+      showMessage("Login berhasil. Mengarahkan ke dashboard...", "success");
+      setTimeout(() => { window.location.href = target.replace(/^\//, ""); }, 600);
 
+    } catch (error) {
+      console.error("Firebase Login Error:", error);
 
+      const messages = {
+        "auth/invalid-credential": "NIM/NIDN/Username atau password salah.",
+        "auth/user-not-found": "Akun tersebut belum terdaftar.",
+        "auth/wrong-password": "Password yang dimasukkan salah.",
+        "auth/too-many-requests": "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
+        "auth/network-request-failed": "Tidak dapat terhubung ke server. Periksa koneksi internet.",
+        "auth/user-disabled": "Akun ini telah dinonaktifkan. Hubungi admin.",
+      };
 
-/* =====================================================
-   INIT FIREBASE
-===================================================== */
-
-const app =
-    initializeApp(firebaseConfig);
-
-
-const auth =
-    getAuth(app);
-
-
-
-/* =====================================================
-   ELEMENT
-===================================================== */
-
-const form =
-    document.getElementById(
-        "loginForm"
-    );
-
-
-const usernameInput =
-    document.getElementById(
-        "username"
-    );
-
-
-const passwordInput =
-    document.getElementById(
-        "password"
-    );
-
-
-const loginButton =
-    document.getElementById(
-        "loginButton"
-    );
-
-
-const message =
-    document.getElementById(
-        "message"
-    );
-
-
-const togglePassword =
-    document.getElementById(
-        "togglePassword"
-    );
-
-
-
-/* =====================================================
-   SHOW / HIDE PASSWORD
-===================================================== */
-
-togglePassword.addEventListener(
-    "click",
-    () => {
-
-        if (
-            passwordInput.type ===
-            "password"
-        ) {
-
-            passwordInput.type =
-                "text";
-
-            togglePassword.textContent =
-                "Sembunyikan";
-
-        }
-
-        else {
-
-            passwordInput.type =
-                "password";
-
-            togglePassword.textContent =
-                "Tampilkan";
-
-        }
-
+      showMessage(messages[error.code] || "Terjadi kesalahan saat login. Silakan coba lagi.");
+      setLoading(false);
     }
-);
-
-
-
-/* =====================================================
-   MESSAGE
-===================================================== */
-
-function showMessage(
-    text,
-    type = "error"
-) {
-
-    message.textContent =
-        text;
-
-    message.className =
-        `message ${type}`;
-
-}
-
-
-
-/* =====================================================
-   LOGIN
-===================================================== */
-
-form.addEventListener(
-    "submit",
-    async (event) => {
-
-        event.preventDefault();
-
-
-        const username =
-            usernameInput.value.trim();
-
-
-        const password =
-            passwordInput.value;
-
-
-        if (!username) {
-
-            showMessage(
-                "Username/NIM wajib diisi."
-            );
-
-            return;
-
-        }
-
-
-        if (!password) {
-
-            showMessage(
-                "Password wajib diisi."
-            );
-
-            return;
-
-        }
-
-
-        /*
-         * Firebase Authentication
-         * membutuhkan email.
-         *
-         * Username/NIM kita ubah
-         * menjadi email internal.
-         */
-
-        const email =
-            `${username}@sikadu.local`;
-
-
-        loginButton.disabled =
-            true;
-
-
-        loginButton.innerHTML =
-            `<span class="loading"></span>
-             Memproses...`;
-
-
-        try {
-
-
-            /* LOGIN FIREBASE */
-
-            const userCredential =
-                await signInWithEmailAndPassword(
-                    auth,
-                    email,
-                    password
-                );
-
-
-            const user =
-                userCredential.user;
-
-
-            console.log(
-                "Login berhasil:",
-                user.uid
-            );
-
-
-            /* SIMPAN DATA LOGIN */
-
-            sessionStorage.setItem(
-                "sikadu_uid",
-                user.uid
-            );
-
-
-            sessionStorage.setItem(
-                "sikadu_username",
-                username
-            );
-
-
-            sessionStorage.setItem(
-                "sikadu_email",
-                user.email
-            );
-
-
-            /* SUCCESS */
-
-            showMessage(
-                "Login berhasil. Mengarahkan...",
-                "success"
-            );
-
-
-            /* REDIRECT */
-
-            setTimeout(
-                () => {
-
-                    window.location.href =
-                        "dashboard.html";
-
-                },
-                800
-            );
-
-
-        }
-
-
-        catch(error) {
-
-
-            console.error(
-                "Firebase Authentication Error:",
-                error
-            );
-
-
-            let errorMessage =
-                "Username atau password salah.";
-
-
-            if (
-                error.code ===
-                "auth/invalid-credential"
-            ) {
-
-                errorMessage =
-                    "Username atau password salah.";
-
-            }
-
-
-            else if (
-                error.code ===
-                "auth/user-not-found"
-            ) {
-
-                errorMessage =
-                    "Akun belum terdaftar.";
-
-            }
-
-
-            else if (
-                error.code ===
-                "auth/wrong-password"
-            ) {
-
-                errorMessage =
-                    "Password salah.";
-
-            }
-
-
-            else if (
-                error.code ===
-                "auth/too-many-requests"
-            ) {
-
-                errorMessage =
-                    "Terlalu banyak percobaan. Silakan coba lagi nanti.";
-
-            }
-
-
-            else if (
-                error.code ===
-                "auth/network-request-failed"
-            ) {
-
-                errorMessage =
-                    "Koneksi ke Firebase gagal. Periksa internet.";
-
-            }
-
-
-            else if (
-                error.code ===
-                "auth/operation-not-allowed"
-            ) {
-
-                errorMessage =
-                    "Login Email/Password belum diaktifkan di Firebase.";
-
-            }
-
-
-            showMessage(
-                errorMessage
-            );
-
-
-            loginButton.disabled =
-                false;
-
-
-            loginButton.textContent =
-                "Masuk";
-
-        }
-
-    }
-);
-
+  });
 </script>
 
 </body>
