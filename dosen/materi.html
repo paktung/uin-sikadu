@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Materi - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=5">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Dosen</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user-row">
+        <div class="avatar" id="sidebarAvatar">D</div>
+        <div class="sidebar-user"><div class="name-line" id="sidebarUser">Memuat...</div></div>
+      </div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Materi</h1><p>Kelola materi untuk kelas yang Anda ampu.</p></div>
+      <button id="addButton" class="button-primary" disabled>+ Tambah Materi</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="kelasSelect">Pilih Kelas</label>
+        <select id="kelasSelect"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="materiList"></div>
+      <div id="materiEmpty" class="empty-state" style="display:none;">Belum ada materi untuk kelas ini.</div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Tambah Materi</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="form-group"><label for="judul">Judul</label><input type="text" id="judul" required></div>
+      <div class="form-group"><label for="deskripsi">Deskripsi Singkat</label><input type="text" id="deskripsi"></div>
+      <div class="form-group"><label for="isiMateri">Isi Materi</label><textarea id="isiMateri" rows="5"></textarea></div>
+      <div class="form-grid-2">
+        <div class="form-group"><label for="fileUrl">Link File</label><input type="url" id="fileUrl" placeholder="https://..."></div>
+        <div class="form-group"><label for="videoUrl">Link Video</label><input type="url" id="videoUrl" placeholder="https://..."></div>
+      </div>
+      <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="published" style="width:auto;" checked>
+        <label for="published" style="margin:0;">Tampilkan ke mahasiswa</label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
+  import {
+    collection, doc, getDoc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "D";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "D";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  renderDosenNav("materi.html");
+  const { uid, profile } = await guardPage("dosen");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  const kelasSelect = document.getElementById("kelasSelect");
+  const addButton = document.getElementById("addButton");
+  let myKelas = [];
+  let materiRows = [];
+
+  async function loadKelasSaya() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) {
+      kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`;
+      return;
+    }
+    const tahunId = tahunSnap.docs[0].id;
+    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
+
+    if (kelasSnap.empty) {
+      kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`;
+      return;
+    }
+
+    const mkIds = [...new Set(kelasSnap.docs.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {};
+    mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    myKelas = kelasSnap.docs.map((d) => ({ id: d.id, ...d.data(), _mk: mkById[d.data().mataKuliahId] || {} }));
+    kelasSelect.innerHTML = myKelas.map((k) => `<option value="${k.id}">${escapeHtml(k._mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`).join("");
+    addButton.disabled = false;
+    await loadMateri();
+  }
+
+  async function loadMateri() {
+    const kelasId = kelasSelect.value;
+    const materiList = document.getElementById("materiList");
+    const materiEmpty = document.getElementById("materiEmpty");
+    if (!kelasId) { materiList.innerHTML = ""; materiEmpty.style.display = "block"; return; }
+
+    materiList.innerHTML = `<p class="hint">Memuat...</p>`;
+    const snap = await withTimeout(getDocs(query(collection(db, "materi"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat materi");
+    materiRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    materiRows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+    materiList.innerHTML = "";
+    materiEmpty.style.display = materiRows.length === 0 ? "block" : "none";
+    materiRows.forEach((m) => {
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">${escapeHtml(m.judul)} ${m.published === false ? '<span class="badge inactive">Draft</span>' : '<span class="badge active">Tayang</span>'}</div>
+            <div class="meta"><span>${escapeHtml(m.deskripsi || "")}</span></div>
+          </div>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-id="${m.id}">Edit</button>
+            <button class="button-danger" data-action="delete" data-id="${m.id}">Hapus</button>
+          </div>
+        </div>`;
+      materiList.appendChild(card);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadMateri().catch((err) => showPageMessage(err.message || "Gagal memuat materi.")));
+
+  document.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest('button[data-action="edit"]');
+    const delBtn = e.target.closest('button[data-action="delete"]');
+    if (editBtn) {
+      const row = materiRows.find((r) => r.id === editBtn.dataset.id);
+      if (row) openModal(row);
+    }
+    if (delBtn) {
+      if (!confirm("Hapus materi ini?")) return;
+      try {
+        await withTimeout(deleteDoc(doc(db, "materi", delBtn.dataset.id)), 15000, "Hapus materi");
+        showPageMessage("Materi dihapus.", "success");
+        loadMateri();
+      } catch (err) {
+        console.error(err);
+        showPageMessage(err.message || "Gagal menghapus materi.");
+      }
+    }
+  });
+
+  // ---------- modal ----------
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const itemForm = document.getElementById("itemForm");
+  const itemIdInput = document.getElementById("itemId");
+  const saveButton = document.getElementById("saveButton");
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function openModal(row = null) {
+    itemForm.reset();
+    showModalMessage("");
+    if (row) {
+      modalTitle.textContent = "Edit Materi";
+      itemIdInput.value = row.id;
+      document.getElementById("judul").value = row.judul || "";
+      document.getElementById("deskripsi").value = row.deskripsi || "";
+      document.getElementById("isiMateri").value = row.isiMateri || "";
+      document.getElementById("fileUrl").value = row.fileUrl || "";
+      document.getElementById("videoUrl").value = row.videoUrl || "";
+      document.getElementById("published").checked = row.published !== false;
+    } else {
+      modalTitle.textContent = "Tambah Materi";
+      itemIdInput.value = "";
+    }
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  addButton.addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const editingId = itemIdInput.value;
+    const judul = document.getElementById("judul").value.trim();
+    const deskripsi = document.getElementById("deskripsi").value.trim();
+    const isiMateri = document.getElementById("isiMateri").value.trim();
+    const fileUrl = document.getElementById("fileUrl").value.trim();
+    const videoUrl = document.getElementById("videoUrl").value.trim();
+    const published = document.getElementById("published").checked;
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      if (editingId) {
+        await withTimeout(updateDoc(doc(db, "materi", editingId), {
+          judul, deskripsi, isiMateri, fileUrl, videoUrl, published, updatedAt: serverTimestamp(),
+        }), 15000, "Simpan materi");
+      } else {
+        await withTimeout(addDoc(collection(db, "materi"), {
+          kelasKuliahId: kelasSelect.value,
+          judul, deskripsi, isiMateri, fileUrl, videoUrl, published,
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        }), 15000, "Simpan materi");
+      }
+      showPageMessage("Materi berhasil disimpan.", "success");
+      closeModal();
+      loadMateri();
+    } catch (err) {
+      console.error(err);
+      showModalMessage(err.message || "Gagal menyimpan materi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
+</script>
+
+</body>
+</html>

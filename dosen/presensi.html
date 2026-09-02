@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presensi - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=5">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Dosen</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user-row">
+        <div class="avatar" id="sidebarAvatar">D</div>
+        <div class="sidebar-user"><div class="name-line" id="sidebarUser">Memuat...</div></div>
+      </div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Presensi</h1><p>Buat pertemuan dan catat kehadiran mahasiswa.</p></div>
+      <button id="addPertemuanButton" class="button-primary" disabled>+ Pertemuan Baru</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="kelasSelect">Pilih Kelas</label>
+        <select id="kelasSelect"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="pertemuanList"></div>
+      <div id="pertemuanEmpty" class="empty-state" style="display:none;">Belum ada pertemuan untuk kelas ini.</div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: PERTEMUAN BARU -->
+<div class="modal-backdrop" id="pertemuanModalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2>Pertemuan Baru</h2><button class="modal-close" id="pertemuanModalClose">&times;</button></div>
+    <div id="pertemuanModalMessage" class="message"></div>
+    <form id="pertemuanForm">
+      <div class="form-grid-2">
+        <div class="form-group"><label for="pertemuanKe">Pertemuan Ke-</label><input type="number" id="pertemuanKe" min="1" required></div>
+        <div class="form-group"><label for="tanggal">Tanggal</label><input type="date" id="tanggal" required></div>
+        <div class="form-group span-2"><label for="judulPertemuan">Judul / Topik</label><input type="text" id="judulPertemuan"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="pertemuanCancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="pertemuanSaveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: ISI ABSENSI -->
+<div class="modal-backdrop" id="absensiModalBackdrop">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header"><h2 id="absensiModalTitle">Isi Kehadiran</h2><button class="modal-close" id="absensiModalClose">&times;</button></div>
+    <div id="absensiModalMessage" class="message"></div>
+    <div style="max-height:400px; overflow-y:auto;">
+      <table class="data-table" id="absensiTable">
+        <thead><tr><th>Nama</th><th>NIM</th><th>Status</th></tr></thead>
+        <tbody id="absensiTableBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="button-secondary" id="absensiCancelButton">Tutup</button>
+      <button type="button" class="button-primary" id="absensiSaveButton">Simpan Kehadiran</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
+  import {
+    collection, doc, addDoc, setDoc, getDoc, getDocs, query, where, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "D";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "D";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  renderDosenNav("presensi.html");
+  const { uid, profile } = await guardPage("dosen");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  const kelasSelect = document.getElementById("kelasSelect");
+  const addPertemuanButton = document.getElementById("addPertemuanButton");
+  let pertemuanRows = [];
+  let pesertaKelas = []; // { uid, nama, nim }
+
+  async function loadKelasSaya() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) { kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`; return; }
+    const tahunId = tahunSnap.docs[0].id;
+
+    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
+    if (kelasSnap.empty) { kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`; return; }
+
+    const mkIds = [...new Set(kelasSnap.docs.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {};
+    mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    kelasSelect.innerHTML = kelasSnap.docs.map((d) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
+    }).join("");
+
+    addPertemuanButton.disabled = false;
+    await loadPertemuan();
+  }
+
+  async function loadPeserta(kelasId) {
+    const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat peserta kelas");
+    const mhsIds = krsSnap.docs.map((d) => d.data().mahasiswaId);
+    const mhsDocs = await Promise.all(mhsIds.map((id) => getDoc(doc(db, "mahasiswa", id))));
+    pesertaKelas = mhsDocs.filter((d) => d.exists()).map((d) => ({ uid: d.id, nama: d.data().nama, nim: d.data().nim }));
+    pesertaKelas.sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
+  }
+
+  async function loadPertemuan() {
+    const kelasId = kelasSelect.value;
+    const pertemuanList = document.getElementById("pertemuanList");
+    const pertemuanEmpty = document.getElementById("pertemuanEmpty");
+    if (!kelasId) { pertemuanList.innerHTML = ""; return; }
+
+    pertemuanList.innerHTML = `<p class="hint">Memuat...</p>`;
+    const snap = await withTimeout(getDocs(query(collection(db, "pertemuan"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat pertemuan");
+    pertemuanRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pertemuanRows.sort((a, b) => (a.pertemuanKe || 0) - (b.pertemuanKe || 0));
+
+    pertemuanList.innerHTML = "";
+    pertemuanEmpty.style.display = pertemuanRows.length === 0 ? "block" : "none";
+
+    pertemuanRows.forEach((p) => {
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">Pertemuan ${escapeHtml(p.pertemuanKe)}${p.judul ? " - " + escapeHtml(p.judul) : ""}</div>
+            <div class="meta"><span>${escapeHtml(p.tanggal || "-")}</span></div>
+          </div>
+          <button class="button-secondary" data-action="isi-absen" data-id="${p.id}">Isi Kehadiran</button>
+        </div>`;
+      pertemuanList.appendChild(card);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadPertemuan().catch((err) => showPageMessage(err.message || "Gagal memuat pertemuan.")));
+
+  // ---------- modal pertemuan baru ----------
+  const pertemuanModalBackdrop = document.getElementById("pertemuanModalBackdrop");
+  const pertemuanModalMessage = document.getElementById("pertemuanModalMessage");
+  const pertemuanForm = document.getElementById("pertemuanForm");
+  const pertemuanSaveButton = document.getElementById("pertemuanSaveButton");
+
+  function closePertemuanModal() { pertemuanModalBackdrop.classList.remove("open"); }
+  document.getElementById("addPertemuanButton").addEventListener("click", () => {
+    pertemuanForm.reset();
+    pertemuanModalMessage.className = "message";
+    document.getElementById("pertemuanKe").value = pertemuanRows.length + 1;
+    pertemuanModalBackdrop.classList.add("open");
+  });
+  document.getElementById("pertemuanModalClose").addEventListener("click", closePertemuanModal);
+  document.getElementById("pertemuanCancelButton").addEventListener("click", closePertemuanModal);
+  pertemuanModalBackdrop.addEventListener("click", (e) => { if (e.target === pertemuanModalBackdrop) closePertemuanModal(); });
+
+  pertemuanForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pertemuanKe = Number(document.getElementById("pertemuanKe").value);
+    const tanggal = document.getElementById("tanggal").value;
+    const judul = document.getElementById("judulPertemuan").value.trim();
+
+    pertemuanSaveButton.disabled = true;
+    pertemuanSaveButton.textContent = "Menyimpan...";
+    try {
+      await withTimeout(addDoc(collection(db, "pertemuan"), {
+        kelasKuliahId: kelasSelect.value, pertemuanKe, tanggal, judul, createdAt: serverTimestamp(),
+      }), 15000, "Simpan pertemuan");
+      closePertemuanModal();
+      showPageMessage("Pertemuan berhasil dibuat.", "success");
+      loadPertemuan();
+    } catch (err) {
+      console.error(err);
+      pertemuanModalMessage.textContent = err.message || "Gagal menyimpan pertemuan.";
+      pertemuanModalMessage.className = "message error";
+    } finally {
+      pertemuanSaveButton.disabled = false;
+      pertemuanSaveButton.textContent = "Simpan";
+    }
+  });
+
+  // ---------- modal isi absensi ----------
+  const absensiModalBackdrop = document.getElementById("absensiModalBackdrop");
+  const absensiModalMessage = document.getElementById("absensiModalMessage");
+  const absensiTableBody = document.getElementById("absensiTableBody");
+  const absensiSaveButton = document.getElementById("absensiSaveButton");
+  let activePertemuanId = null;
+
+  const STATUS_OPTIONS = ["Hadir", "Izin", "Sakit", "Alpa"];
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest('button[data-action="isi-absen"]');
+    if (!btn) return;
+    activePertemuanId = btn.dataset.id;
+    absensiModalMessage.className = "message";
+    absensiTableBody.innerHTML = `<tr><td colspan="3" class="empty-state">Memuat peserta...</td></tr>`;
+    absensiModalBackdrop.classList.add("open");
+
+    try {
+      await loadPeserta(kelasSelect.value);
+      const existingSnap = await withTimeout(getDocs(query(collection(db, "absensi"), where("pertemuanId", "==", activePertemuanId))), 15000, "Memuat kehadiran");
+      const existingByMhs = {};
+      existingSnap.forEach((d) => { existingByMhs[d.data().mahasiswaId] = d.data().status; });
+
+      if (pesertaKelas.length === 0) {
+        absensiTableBody.innerHTML = `<tr><td colspan="3" class="empty-state">Belum ada mahasiswa yang mengambil kelas ini (KRS kosong).</td></tr>`;
+        return;
+      }
+
+      absensiTableBody.innerHTML = pesertaKelas.map((m) => `
+        <tr data-mhs-uid="${m.uid}">
+          <td>${escapeHtml(m.nama || "-")}</td>
+          <td>${escapeHtml(m.nim || "-")}</td>
+          <td>
+            <select class="absensi-status">
+              ${STATUS_OPTIONS.map((s) => `<option value="${s}" ${existingByMhs[m.uid] === s ? "selected" : ""}>${s}</option>`).join("")}
+            </select>
+          </td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      console.error(err);
+      absensiTableBody.innerHTML = `<tr><td colspan="3" class="empty-state">${escapeHtml(err.message || "Gagal memuat data.")}</td></tr>`;
+    }
+  });
+
+  function closeAbsensiModal() { absensiModalBackdrop.classList.remove("open"); }
+  document.getElementById("absensiModalClose").addEventListener("click", closeAbsensiModal);
+  document.getElementById("absensiCancelButton").addEventListener("click", closeAbsensiModal);
+  absensiModalBackdrop.addEventListener("click", (e) => { if (e.target === absensiModalBackdrop) closeAbsensiModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAbsensiModal(); closePertemuanModal(); } });
+
+  absensiSaveButton.addEventListener("click", async () => {
+    absensiSaveButton.disabled = true;
+    absensiSaveButton.textContent = "Menyimpan...";
+    absensiModalMessage.className = "message";
+
+    try {
+      const rows = [...absensiTableBody.querySelectorAll("tr[data-mhs-uid]")];
+      for (const row of rows) {
+        const mhsUid = row.dataset.mhsUid;
+        const status = row.querySelector(".absensi-status").value;
+        const absensiId = `${activePertemuanId}_${mhsUid}`;
+        await withTimeout(setDoc(doc(db, "absensi", absensiId), {
+          pertemuanId: activePertemuanId,
+          mahasiswaId: mhsUid,
+          status,
+          waktuAbsen: serverTimestamp(),
+        }), 15000, "Simpan kehadiran");
+      }
+      absensiModalMessage.textContent = "Kehadiran berhasil disimpan.";
+      absensiModalMessage.className = "message success";
+    } catch (err) {
+      console.error(err);
+      absensiModalMessage.textContent = err.message || "Gagal menyimpan sebagian/semua kehadiran.";
+      absensiModalMessage.className = "message error";
+    } finally {
+      absensiSaveButton.disabled = false;
+      absensiSaveButton.textContent = "Simpan Kehadiran";
+    }
+  });
+
+  loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
+</script>
+
+</body>
+</html>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=4">
+<link rel="stylesheet" href="../assets/style.css?v=5">
 </head>
 <body>
 
@@ -20,9 +20,7 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <a href="dashboard.html" class="active">Dashboard</a>
-    </nav>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
 
     <div class="sidebar-footer">
       <div class="sidebar-user-row">
@@ -74,6 +72,14 @@
     </div>
 
     <div class="card">
+      <h2 style="font-size:16px; margin-bottom:14px;">Langkah cepat</h2>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="materi.html" class="button-secondary" style="text-decoration:none;">📚 Kelola Materi</a>
+        <a href="presensi.html" class="button-secondary" style="text-decoration:none;">✅ Isi Presensi</a>
+      </div>
+    </div>
+
+    <div class="card">
       <h2 style="font-size:16px; margin-bottom:14px;">Kelas Saya (Tahun Akademik Aktif)</h2>
       <div id="kelasList"></div>
       <div id="kelasEmpty" class="empty-state" style="display:none;">Belum ada kelas yang diampu pada periode aktif.</div>
@@ -104,12 +110,15 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=4";
-  import { db } from "../assets/firebase-config.js?v=4";
-  import { withTimeout } from "../assets/with-timeout.js?v=4";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
   import {
     doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  renderDosenNav("dashboard.html");
 
   function initials(name) {
     if (!name) return "D";
