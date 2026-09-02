@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=6">
+<link rel="stylesheet" href="../assets/style.css?v=7">
 </head>
 <body>
 
@@ -60,23 +60,21 @@
       <button id="editProfileButton" class="button-secondary">Edit Profil</button>
     </div>
 
-    <div class="dash-top-grid">
-      <div class="stat-grid-elegant" style="margin-bottom:0;">
-        <div class="stat-card-elegant">
-          <div class="stat-icon c4">🏫</div>
-          <div class="stat-text"><div class="label">Kelas Diampu</div><div class="value" id="statKelas">-</div></div>
-        </div>
-        <div class="stat-card-elegant">
-          <div class="stat-icon c1">📅</div>
-          <div class="stat-text"><div class="label">Tahun Akademik Aktif</div><div class="value" id="statTahun" style="font-size:15px;">-</div></div>
-        </div>
+    <div class="stat-grid-elegant">
+      <div class="stat-card-elegant">
+        <div class="stat-icon c4">🏫</div>
+        <div class="stat-text"><div class="label">Kelas Diampu</div><div class="value" id="statKelas">-</div></div>
       </div>
-      <div id="calendarWidget"></div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c1">📅</div>
+        <div class="stat-text"><div class="label">Tahun Akademik Aktif</div><div class="value" id="statTahun" style="font-size:15px;">-</div></div>
+      </div>
     </div>
 
     <div class="card">
       <h2 style="font-size:16px; margin-bottom:14px;">Langkah cepat</h2>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="peserta.html" class="button-secondary" style="text-decoration:none;">👥 Kelola Peserta</a>
         <a href="materi.html" class="button-secondary" style="text-decoration:none;">📚 Kelola Materi</a>
         <a href="presensi.html" class="button-secondary" style="text-decoration:none;">✅ Isi Presensi</a>
       </div>
@@ -113,11 +111,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=6";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=6";
-  import { db } from "../assets/firebase-config.js?v=6";
-  import { withTimeout } from "../assets/with-timeout.js?v=6";
-  import { renderCalendarWidget } from "../assets/calendar-widget.js?v=6";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
   import {
     doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -134,7 +131,6 @@
   }
 
   const { uid, profile } = await guardPage("dosen");
-  renderCalendarWidget("calendarWidget");
   document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
   document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
   document.getElementById("greeting").textContent = `Halo, ${profile.nama || profile.username}`;
