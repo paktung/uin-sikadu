@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Peserta Kelas - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=9">
+<link rel="stylesheet" href="../assets/style.css?v=10">
 </head>
 <body>
 
@@ -46,7 +46,7 @@
       <div class="table-toolbar">
         <span class="hint" id="rowCount"></span>
       </div>
-      <div style="overflow-x:auto;">
+      <div class="scroll-panel">
         <table class="data-table">
           <thead><tr><th>Nama</th><th>NIM</th><th></th></tr></thead>
           <tbody id="tableBody"></tbody>
@@ -57,29 +57,36 @@
   </main>
 </div>
 
-<!-- MODAL: TAMBAH MAHASISWA -->
+<!-- MODAL: TAMBAH MAHASISWA (checklist, bisa banyak sekaligus) -->
 <div class="modal-backdrop" id="modalBackdrop">
-  <div class="modal">
+  <div class="modal" style="max-width:560px;">
     <div class="modal-header"><h2>Tambah Mahasiswa ke Kelas</h2><button class="modal-close" id="modalClose">&times;</button></div>
     <div id="modalMessage" class="message"></div>
     <div class="form-group">
       <label for="searchInput">Cari Nama / NIM</label>
       <input type="search" id="searchInput" placeholder="Ketik nama atau NIM...">
     </div>
-    <div id="candidateList" style="max-height:320px; overflow-y:auto;"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; margin:0;">
+        <input type="checkbox" id="selectAllCheckbox" style="width:auto;"> Pilih semua yang tampil
+      </label>
+      <span class="hint" id="selectedCount">0 dipilih</span>
+    </div>
+    <div id="candidateList" class="scroll-panel" style="max-height:320px;"></div>
     <div class="modal-actions">
       <button type="button" class="button-secondary" id="cancelButton">Tutup</button>
+      <button type="button" class="button-primary" id="addSelectedButton" disabled>Tambah Terpilih</button>
     </div>
   </div>
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=9";
-  import { db } from "../assets/firebase-config.js?v=9";
-  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=10";
+  import { db } from "../assets/firebase-config.js?v=10";
+  import { withTimeout } from "../assets/with-timeout.js?v=10";
   import {
-    collection, doc, addDoc, deleteDoc, getDoc, getDocs, query, where, serverTimestamp,
+    collection, doc, deleteDoc, getDoc, getDocs, query, where, writeBatch, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   function initials(name) {
@@ -149,7 +156,6 @@
     tableBody.innerHTML = `<tr><td colspan="3" class="empty-state">Memuat...</td></tr>`;
     const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat peserta");
 
-    const mhsIds = krsSnap.docs.map((d) => d.data().mahasiswaId);
     const mhsById = {};
     allMahasiswa.forEach((m) => { mhsById[m.uid] = m; });
 
@@ -189,15 +195,27 @@
     }
   });
 
-  // ---------- modal tambah mahasiswa ----------
+  // ---------- modal tambah mahasiswa (checklist multi-pilih) ----------
   const modalBackdrop = document.getElementById("modalBackdrop");
   const modalMessage = document.getElementById("modalMessage");
   const searchInput = document.getElementById("searchInput");
   const candidateList = document.getElementById("candidateList");
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  const selectedCountEl = document.getElementById("selectedCount");
+  const addSelectedButton = document.getElementById("addSelectedButton");
+  let selectedUids = new Set();
+  let currentCandidates = [];
 
   function showModalMessage(text, type = "error") {
     modalMessage.textContent = text;
     modalMessage.className = `message ${type}`;
+  }
+
+  function updateSelectedCount() {
+    selectedCountEl.textContent = `${selectedUids.size} dipilih`;
+    addSelectedButton.disabled = selectedUids.size === 0;
+    const visibleUids = currentCandidates.map((c) => c.uid);
+    selectAllCheckbox.checked = visibleUids.length > 0 && visibleUids.every((id) => selectedUids.has(id));
   }
 
   function renderCandidates() {
@@ -207,20 +225,23 @@
     if (search) {
       candidates = candidates.filter((m) => (m.nama || "").toLowerCase().includes(search) || (m.nim || "").toLowerCase().includes(search));
     }
-    candidates = candidates.slice(0, 50); // batasi tampilan biar ringan
+    currentCandidates = candidates.slice(0, 200); // batas tampilan biar tetap ringan
 
-    candidateList.innerHTML = candidates.length
-      ? candidates.map((m) => `
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 4px; border-bottom:1px solid var(--border-soft);">
+    candidateList.innerHTML = currentCandidates.length
+      ? currentCandidates.map((m) => `
+          <label style="display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+            <input type="checkbox" class="candidate-checkbox" data-uid="${m.uid}" style="width:auto;" ${selectedUids.has(m.uid) ? "checked" : ""}>
             <div><div style="font-weight:600; font-size:14px;">${escapeHtml(m.nama || "-")}</div><div class="hint">${escapeHtml(m.nim || "-")}</div></div>
-            <button class="button-secondary" data-action="add" data-uid="${m.uid}">+ Tambah</button>
-          </div>
+          </label>
         `).join("")
       : `<p class="hint" style="padding:12px 4px;">Tidak ada mahasiswa yang cocok / semua sudah ditambahkan.</p>`;
+
+    updateSelectedCount();
   }
 
   document.getElementById("addButton").addEventListener("click", () => {
     searchInput.value = "";
+    selectedUids = new Set();
     showModalMessage("");
     renderCandidates();
     modalBackdrop.classList.add("open");
@@ -232,27 +253,51 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
   searchInput.addEventListener("input", renderCandidates);
 
-  candidateList.addEventListener("click", async (e) => {
-    const btn = e.target.closest('button[data-action="add"]');
-    if (!btn) return;
-    btn.disabled = true;
-    btn.textContent = "Menambah...";
+  candidateList.addEventListener("change", (e) => {
+    const cb = e.target.closest(".candidate-checkbox");
+    if (!cb) return;
+    if (cb.checked) selectedUids.add(cb.dataset.uid);
+    else selectedUids.delete(cb.dataset.uid);
+    updateSelectedCount();
+  });
+
+  selectAllCheckbox.addEventListener("change", () => {
+    currentCandidates.forEach((m) => {
+      if (selectAllCheckbox.checked) selectedUids.add(m.uid);
+      else selectedUids.delete(m.uid);
+    });
+    renderCandidates();
+  });
+
+  addSelectedButton.addEventListener("click", async () => {
+    if (selectedUids.size === 0) return;
+    showModalMessage("");
+    addSelectedButton.disabled = true;
+    addSelectedButton.textContent = "Menambahkan...";
+
     try {
-      await withTimeout(addDoc(collection(db, "krs"), {
-        mahasiswaId: btn.dataset.uid,
-        kelasKuliahId: kelasSelect.value,
-        tahunAkademikId: tahunId,
-        status: "disetujui",
-        enrolledAt: serverTimestamp(),
-      }), 15000, "Tambah mahasiswa");
+      const batch = writeBatch(db);
+      selectedUids.forEach((mhsUid) => {
+        const newDocRef = doc(collection(db, "krs"));
+        batch.set(newDocRef, {
+          mahasiswaId: mhsUid,
+          kelasKuliahId: kelasSelect.value,
+          tahunAkademikId: tahunId,
+          status: "disetujui",
+          enrolledAt: serverTimestamp(),
+        });
+      });
+      await withTimeout(batch.commit(), 20000, "Tambah mahasiswa terpilih");
+
+      showPageMessage(`${selectedUids.size} mahasiswa berhasil ditambahkan ke kelas.`, "success");
+      closeModal();
       await loadPeserta();
-      renderCandidates();
-      showPageMessage("Mahasiswa berhasil ditambahkan ke kelas.", "success");
     } catch (err) {
       console.error(err);
-      showModalMessage(err.message || "Gagal menambahkan mahasiswa.");
-      btn.disabled = false;
-      btn.textContent = "+ Tambah";
+      showModalMessage(err.message || "Gagal menambahkan mahasiswa. Cek Console (F12) untuk detail.");
+    } finally {
+      addSelectedButton.disabled = false;
+      addSelectedButton.textContent = "Tambah Terpilih";
     }
   });
 

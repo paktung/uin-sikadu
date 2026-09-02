@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tugas - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=9">
+<link rel="stylesheet" href="../assets/style.css?v=10">
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<style>
+  .ql-editor { min-height: 140px; font-size: 14px; background: white; }
+  .ql-toolbar.ql-snow { border-radius: 12px 12px 0 0; border-color: var(--border); }
+  .ql-container.ql-snow { border-radius: 0 0 12px 12px; border-color: var(--border); }
+  .html-source-textarea { display: none; width: 100%; min-height: 180px; font-family: monospace; font-size: 12.5px; }
+</style>
 </head>
 <body>
 
@@ -43,7 +51,7 @@
     </div>
 
     <div class="card">
-      <div id="tugasList"></div>
+      <div id="tugasList" class="scroll-panel" style="max-height:55vh;"></div>
       <div id="tugasEmpty" class="empty-state" style="display:none;">Belum ada tugas untuk kelas ini.</div>
     </div>
   </main>
@@ -57,7 +65,14 @@
     <form id="itemForm">
       <input type="hidden" id="itemId">
       <div class="form-group"><label for="judul">Judul Tugas</label><input type="text" id="judul" required></div>
-      <div class="form-group"><label for="instruksi">Instruksi</label><textarea id="instruksi" rows="4"></textarea></div>
+      <div class="form-group">
+        <label>Instruksi</label>
+        <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+          <button type="button" id="toggleHtmlButton" class="button-ghost" style="padding:4px 10px; font-size:12px;">Edit sebagai kode HTML</button>
+        </div>
+        <div id="editorContainer"></div>
+        <textarea id="htmlSource" class="html-source-textarea" placeholder="&lt;p&gt;Tulis HTML di sini...&lt;/p&gt;"></textarea>
+      </div>
       <div class="form-group"><label for="fileUrl">Link Lampiran (opsional)</label><input type="url" id="fileUrl" placeholder="https://..."></div>
       <div class="form-grid-2">
         <div class="form-group"><label for="deadline">Deadline</label><input type="datetime-local" id="deadline"></div>
@@ -93,10 +108,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=9";
-  import { db } from "../assets/firebase-config.js?v=9";
-  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=10";
+  import { db } from "../assets/firebase-config.js?v=10";
+  import { withTimeout } from "../assets/with-timeout.js?v=10";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc, getDocs, query, where, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -113,6 +128,47 @@
     if (!iso) return "Tanpa deadline";
     const d = new Date(iso);
     return d.toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // ---------- editor WYSIWYG (Quill) untuk instruksi ----------
+  const quill = new Quill("#editorContainer", {
+    theme: "snow",
+    modules: {
+      toolbar: [
+        [{ header: [2, 3, false] }],
+        ["bold", "italic", "underline"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link", "image"],
+        ["clean"],
+      ],
+    },
+  });
+  const htmlSourceEl = document.getElementById("htmlSource");
+  const toggleHtmlButton = document.getElementById("toggleHtmlButton");
+  let htmlMode = false;
+
+  toggleHtmlButton.addEventListener("click", () => {
+    htmlMode = !htmlMode;
+    if (htmlMode) {
+      htmlSourceEl.value = quill.root.innerHTML;
+      document.getElementById("editorContainer").parentElement.querySelector(".ql-toolbar").style.display = "none";
+      quill.root.parentElement.style.display = "none";
+      htmlSourceEl.style.display = "block";
+      toggleHtmlButton.textContent = "Kembali ke editor visual";
+    } else {
+      quill.root.innerHTML = htmlSourceEl.value;
+      document.getElementById("editorContainer").parentElement.querySelector(".ql-toolbar").style.display = "";
+      quill.root.parentElement.style.display = "";
+      htmlSourceEl.style.display = "none";
+      toggleHtmlButton.textContent = "Edit sebagai kode HTML";
+    }
+  });
+
+  function getInstruksiHtml() { return htmlMode ? htmlSourceEl.value : quill.root.innerHTML; }
+  function setInstruksiHtml(html) {
+    quill.root.innerHTML = html || "";
+    htmlSourceEl.value = html || "";
+    if (htmlMode) { toggleHtmlButton.click(); }
   }
 
   renderDosenNav("tugas.html");
@@ -241,7 +297,7 @@
       modalTitle.textContent = "Edit Tugas";
       itemIdInput.value = row.id;
       document.getElementById("judul").value = row.judul || "";
-      document.getElementById("instruksi").value = row.instruksi || "";
+      setInstruksiHtml(row.instruksi || "");
       document.getElementById("fileUrl").value = row.fileUrl || "";
       document.getElementById("deadline").value = row.deadline || "";
       document.getElementById("maxScore").value = row.maxScore ?? 100;
@@ -250,6 +306,7 @@
       modalTitle.textContent = "Tambah Tugas";
       itemIdInput.value = "";
       document.getElementById("maxScore").value = 100;
+      setInstruksiHtml("");
     }
     modalBackdrop.classList.add("open");
   }
@@ -266,7 +323,7 @@
     showModalMessage("");
     const editingId = itemIdInput.value;
     const judul = document.getElementById("judul").value.trim();
-    const instruksi = document.getElementById("instruksi").value.trim();
+    const instruksi = getInstruksiHtml();
     const fileUrl = document.getElementById("fileUrl").value.trim();
     const deadline = document.getElementById("deadline").value;
     const maxScore = Number(document.getElementById("maxScore").value) || 100;

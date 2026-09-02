@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nilai - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=9">
+<link rel="stylesheet" href="../assets/style.css?v=10">
 </head>
 <body>
 
@@ -43,7 +43,7 @@
     </div>
 
     <div class="card">
-      <div style="overflow-x:auto;">
+      <div class="scroll-panel">
         <table class="data-table">
           <thead>
             <tr><th>Nama</th><th>NIM</th><th>Tugas</th><th>UTS</th><th>UAS</th><th>Kehadiran</th><th>Nilai Akhir</th><th>Huruf</th></tr>
@@ -57,10 +57,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=9";
-  import { db } from "../assets/firebase-config.js?v=9";
-  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=10";
+  import { db } from "../assets/firebase-config.js?v=10";
+  import { withTimeout } from "../assets/with-timeout.js?v=10";
   import {
     collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
