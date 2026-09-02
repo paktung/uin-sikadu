@@ -70,7 +70,7 @@
     return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function jadwalText(k) {
-    if (!k.hari) return "Jadwal belum ditentukan";
+    if (!k.hari) return "";
     return `${k.hari}, ${k.jamMulai || "?"}-${k.jamSelesai || "?"} @ ${k.ruang || "-"}`;
   }
 
@@ -127,11 +127,12 @@
       const dosen = dosenById[k.dosenId] || {};
       const card = document.createElement("div");
       card.className = "class-card";
+      const jadwal = jadwalText(k);
       card.innerHTML = `
         <div class="title">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")} (${escapeHtml(mk.sks ?? "-")} SKS)</div>
         <div class="meta">
           <span>Dosen: ${escapeHtml(dosen.nama || "-")}</span>
-          <span>${escapeHtml(jadwalText(k))}</span>
+          ${jadwal ? `<span>${escapeHtml(jadwal)}</span>` : ""}
         </div>
       `;
       krsList.appendChild(card);
