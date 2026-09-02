@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Presensi - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=5">
+<link rel="stylesheet" href="../assets/style.css?v=6">
 </head>
 <body>
 
@@ -15,12 +15,14 @@
       <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
       <div><div class="name">SIKADU</div><div class="role">Panel Dosen</div></div>
     </div>
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">D</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Dosen</div>
+      <div class="underline"></div>
+    </div>
     <nav class="sidebar-nav" id="sidebarNav"></nav>
     <div class="sidebar-footer">
-      <div class="sidebar-user-row">
-        <div class="avatar" id="sidebarAvatar">D</div>
-        <div class="sidebar-user"><div class="name-line" id="sidebarUser">Memuat...</div></div>
-      </div>
       <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
     </div>
   </aside>
@@ -85,10 +87,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
-  import { renderDosenNav } from "../assets/dosen-nav.js?v=5";
-  import { db } from "../assets/firebase-config.js?v=5";
-  import { withTimeout } from "../assets/with-timeout.js?v=5";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=6";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=6";
+  import { db } from "../assets/firebase-config.js?v=6";
+  import { withTimeout } from "../assets/with-timeout.js?v=6";
   import {
     collection, doc, addDoc, setDoc, getDoc, getDocs, query, where, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
