@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Admin - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=7">
+<link rel="stylesheet" href="../assets/style.css?v=8">
 </head>
 <body>
 
@@ -41,6 +41,7 @@
         <h1 id="greeting">Dashboard</h1>
         <p>Ringkasan data akademik SIKADU.</p>
       </div>
+      <button id="changePasswordButton" class="button-secondary">Ganti Password</button>
     </div>
 
     <div id="pageMessage" class="message"></div>
@@ -97,11 +98,29 @@
   </main>
 </div>
 
+<!-- MODAL: GANTI PASSWORD -->
+<div class="modal-backdrop" id="passwordModalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2>Ganti Password</h2><button class="modal-close" id="passwordModalClose">&times;</button></div>
+    <div id="passwordModalMessage" class="message"></div>
+    <form id="passwordForm">
+      <div class="form-group"><label for="currentPassword">Password Lama</label><input type="password" id="currentPassword" autocomplete="current-password" required></div>
+      <div class="form-group"><label for="newPassword">Password Baru</label><input type="password" id="newPassword" minlength="6" autocomplete="new-password" required></div>
+      <div class="form-group"><label for="confirmPassword">Konfirmasi Password Baru</label><input type="password" id="confirmPassword" minlength="6" autocomplete="new-password" required></div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="passwordCancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="passwordSaveButton">Ganti Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=7";
-  import { db } from "../assets/firebase-config.js?v=7";
-  import { withTimeout } from "../assets/with-timeout.js?v=7";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=8";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=8";
+  import { db } from "../assets/firebase-config.js?v=8";
+  import { withTimeout } from "../assets/with-timeout.js?v=8";
+  import { changeOwnPassword } from "../assets/change-password.js?v=8";
   import {
     collection, query, where, getCountFromServer, getDocs,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -159,6 +178,68 @@
     el.textContent = err.message || "Gagal memuat statistik dashboard. Cek Console (F12) untuk detail.";
     el.className = "message error";
     document.getElementById("tahunAktifLabel").textContent = "Gagal dimuat.";
+  });
+
+  // ---------- ganti password ----------
+  const passwordModalBackdrop = document.getElementById("passwordModalBackdrop");
+  const passwordModalMessage = document.getElementById("passwordModalMessage");
+  const passwordForm = document.getElementById("passwordForm");
+  const passwordSaveButton = document.getElementById("passwordSaveButton");
+
+  function showPasswordModalMessage(text, type = "error") {
+    passwordModalMessage.textContent = text;
+    passwordModalMessage.className = `message ${type}`;
+  }
+  function openPasswordModal() {
+    passwordForm.reset();
+    showPasswordModalMessage("");
+    passwordModalBackdrop.classList.add("open");
+  }
+  function closePasswordModal() { passwordModalBackdrop.classList.remove("open"); }
+
+  document.getElementById("changePasswordButton").addEventListener("click", openPasswordModal);
+  document.getElementById("passwordModalClose").addEventListener("click", closePasswordModal);
+  document.getElementById("passwordCancelButton").addEventListener("click", closePasswordModal);
+  passwordModalBackdrop.addEventListener("click", (e) => { if (e.target === passwordModalBackdrop) closePasswordModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePasswordModal(); });
+
+  passwordForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showPasswordModalMessage("");
+
+    const currentPassword = document.getElementById("currentPassword").value;
+    const newPassword = document.getElementById("newPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+
+    if (newPassword !== confirmPassword) {
+      showPasswordModalMessage("Konfirmasi password baru tidak cocok.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      showPasswordModalMessage("Password baru minimal 6 karakter.");
+      return;
+    }
+
+    passwordSaveButton.disabled = true;
+    passwordSaveButton.textContent = "Menyimpan...";
+
+    try {
+      await changeOwnPassword(currentPassword, newPassword);
+      showPasswordModalMessage("Password berhasil diganti.", "success");
+      setTimeout(closePasswordModal, 1200);
+    } catch (err) {
+      console.error(err);
+      const messages = {
+        "auth/wrong-password": "Password lama salah.",
+        "auth/invalid-credential": "Password lama salah.",
+        "auth/weak-password": "Password baru terlalu lemah (minimal 6 karakter).",
+        "auth/requires-recent-login": "Sesi login terlalu lama. Silakan logout lalu login ulang, baru coba ganti password lagi.",
+      };
+      showPasswordModalMessage(messages[err.code] || err.message || "Gagal mengganti password.");
+    } finally {
+      passwordSaveButton.disabled = false;
+      passwordSaveButton.textContent = "Ganti Password";
+    }
   });
 </script>
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=7">
+<link rel="stylesheet" href="../assets/style.css?v=8">
 </head>
 <body>
 
@@ -134,12 +134,29 @@
   </div>
 </div>
 
+<!-- MODAL: RESET PASSWORD -->
+<div class="modal-backdrop" id="resetPasswordModalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="resetPasswordTitle">Reset Password</h2><button class="modal-close" id="resetPasswordModalClose">&times;</button></div>
+    <div id="resetPasswordModalMessage" class="message"></div>
+    <form id="resetPasswordForm">
+      <div class="form-group"><label for="resetNewPassword">Password Baru</label><input type="password" id="resetNewPassword" minlength="6" autocomplete="new-password" required></div>
+      <p class="hint">Beri tahu password baru ini ke dosen yang bersangkutan secara langsung/pribadi.</p>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="resetPasswordCancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="resetPasswordSaveButton">Reset Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=7";
-  import { db } from "../assets/firebase-config.js?v=7";
-  import { withTimeout } from "../assets/with-timeout.js?v=7";
-  import { createAuthUser } from "../assets/create-auth-user.js?v=7";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=8";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=8";
+  import { db, functionsInstance } from "../assets/firebase-config.js?v=8";
+  import { httpsCallable } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js";
+  import { withTimeout } from "../assets/with-timeout.js?v=8";
+  import { createAuthUser } from "../assets/create-auth-user.js?v=8";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -234,6 +251,7 @@
         <td>
           <div class="row-actions">
             <button class="button-ghost" data-action="edit" data-uid="${uid}">Edit</button>
+            <button class="button-ghost" data-action="reset-password" data-uid="${uid}" data-nama="${escapeHtml(dosen.nama || "")}">Reset Password</button>
             <button class="button-danger" data-action="toggle" data-uid="${uid}">${isActive ? "Nonaktifkan" : "Aktifkan"}</button>
           </div>
         </td>
@@ -274,6 +292,10 @@
         console.error(err);
         showPageMessage("Gagal mengubah status akun.");
       }
+    }
+
+    if (button.dataset.action === "reset-password") {
+      openResetPasswordModal(uid, row.dosen.nama);
     }
   });
 
@@ -387,6 +409,59 @@
   });
 
   loadDosen().catch((err) => { console.error(err); showPageMessage("Gagal memuat data dosen."); });
+
+  // ---------- reset password (lewat Cloud Function) ----------
+  const resetPasswordModalBackdrop = document.getElementById("resetPasswordModalBackdrop");
+  const resetPasswordTitle = document.getElementById("resetPasswordTitle");
+  const resetPasswordModalMessage = document.getElementById("resetPasswordModalMessage");
+  const resetPasswordForm = document.getElementById("resetPasswordForm");
+  const resetPasswordSaveButton = document.getElementById("resetPasswordSaveButton");
+  let resetTargetUid = null;
+
+  function showResetPasswordMessage(text, type = "error") {
+    resetPasswordModalMessage.textContent = text;
+    resetPasswordModalMessage.className = `message ${type}`;
+  }
+  function openResetPasswordModal(uid, nama) {
+    resetTargetUid = uid;
+    resetPasswordForm.reset();
+    showResetPasswordMessage("");
+    resetPasswordTitle.textContent = `Reset Password - ${nama || "Dosen"}`;
+    resetPasswordModalBackdrop.classList.add("open");
+  }
+  function closeResetPasswordModal() { resetPasswordModalBackdrop.classList.remove("open"); }
+
+  document.getElementById("resetPasswordModalClose").addEventListener("click", closeResetPasswordModal);
+  document.getElementById("resetPasswordCancelButton").addEventListener("click", closeResetPasswordModal);
+  resetPasswordModalBackdrop.addEventListener("click", (e) => { if (e.target === resetPasswordModalBackdrop) closeResetPasswordModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeResetPasswordModal(); });
+
+  resetPasswordForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showResetPasswordMessage("");
+    const newPassword = document.getElementById("resetNewPassword").value;
+
+    resetPasswordSaveButton.disabled = true;
+    resetPasswordSaveButton.textContent = "Menyimpan...";
+
+    try {
+      const resetUserPassword = httpsCallable(functionsInstance, "resetUserPassword");
+      await withTimeout(resetUserPassword({ targetUid: resetTargetUid, newPassword }), 20000, "Reset password");
+      showResetPasswordMessage("Password berhasil direset.", "success");
+      setTimeout(closeResetPasswordModal, 1200);
+    } catch (err) {
+      console.error(err);
+      const isNotDeployed = err.code === "functions/not-found" || err.code === "functions/internal" || /CORS|Failed to fetch/i.test(err.message || "");
+      showResetPasswordMessage(
+        isNotDeployed
+          ? "Cloud Function belum di-deploy. Lihat README bagian 'Reset Password oleh Admin' untuk cara deploy-nya."
+          : (err.message || "Gagal reset password.")
+      );
+    } finally {
+      resetPasswordSaveButton.disabled = false;
+      resetPasswordSaveButton.textContent = "Reset Password";
+    }
+  });
 </script>
 
 </body>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Mahasiswa - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=7">
+<link rel="stylesheet" href="../assets/style.css?v=8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -150,6 +150,14 @@
           <label for="alamat">Alamat</label>
           <textarea id="alamat" rows="2"></textarea>
         </div>
+
+        <div class="form-group span-2">
+          <label for="foto">Link Foto Profil</label>
+          <input type="url" id="foto" placeholder="https://i.imgur.com/... atau https://res.cloudinary.com/...">
+        </div>
+        <div class="form-group"><label for="instagram">Instagram</label><input type="text" id="instagram" placeholder="username, tanpa @"></div>
+        <div class="form-group"><label for="tiktok">TikTok</label><input type="text" id="tiktok" placeholder="username, tanpa @"></div>
+        <div class="form-group span-2"><label for="linkedin">LinkedIn</label><input type="text" id="linkedin" placeholder="URL profil LinkedIn"></div>
       </div>
 
       <div class="modal-actions">
@@ -187,12 +195,29 @@
   </div>
 </div>
 
+<!-- MODAL: RESET PASSWORD -->
+<div class="modal-backdrop" id="resetPasswordModalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="resetPasswordTitle">Reset Password</h2><button class="modal-close" id="resetPasswordModalClose">&times;</button></div>
+    <div id="resetPasswordModalMessage" class="message"></div>
+    <form id="resetPasswordForm">
+      <div class="form-group"><label for="resetNewPassword">Password Baru</label><input type="password" id="resetNewPassword" minlength="6" autocomplete="new-password" required></div>
+      <p class="hint">Beri tahu password baru ini ke mahasiswa yang bersangkutan secara langsung/pribadi.</p>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="resetPasswordCancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="resetPasswordSaveButton">Reset Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=7";
-  import { db } from "../assets/firebase-config.js?v=7";
-  import { withTimeout } from "../assets/with-timeout.js?v=7";
-  import { createAuthUser, createAuthUserBatch } from "../assets/create-auth-user.js?v=7";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=8";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=8";
+  import { db, functionsInstance } from "../assets/firebase-config.js?v=8";
+  import { httpsCallable } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js";
+  import { withTimeout } from "../assets/with-timeout.js?v=8";
+  import { createAuthUser, createAuthUserBatch } from "../assets/create-auth-user.js?v=8";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -286,6 +311,7 @@
         <td>
           <div class="row-actions">
             <button class="button-ghost" data-action="edit" data-uid="${uid}">Edit</button>
+            <button class="button-ghost" data-action="reset-password" data-uid="${uid}" data-nama="${escapeHtml(mhs.nama || "")}">Reset Password</button>
             <button class="button-danger" data-action="toggle" data-uid="${uid}">${isActive ? "Nonaktifkan" : "Aktifkan"}</button>
           </div>
         </td>
@@ -327,6 +353,10 @@
         showPageMessage("Gagal mengubah status akun.");
       }
     }
+
+    if (button.dataset.action === "reset-password") {
+      openResetPasswordModal(uid, row.mhs.nama);
+    }
   });
 
   // ---------- modal open/close ----------
@@ -345,6 +375,10 @@
       document.getElementById("tanggalLahir").value = row.mhs.tanggalLahir || "";
       document.getElementById("email").value = row.mhs.email || "";
       document.getElementById("alamat").value = row.mhs.alamat || "";
+      document.getElementById("foto").value = row.mhs.foto || "";
+      document.getElementById("instagram").value = row.mhs.instagram || "";
+      document.getElementById("tiktok").value = row.mhs.tiktok || "";
+      document.getElementById("linkedin").value = row.mhs.linkedin || "";
       usernameInput.value = row.user.username || "";
       usernameInput.disabled = true;
       passwordGroup.style.display = "none";
@@ -385,6 +419,10 @@
     const tanggalLahir = document.getElementById("tanggalLahir").value;
     const email = document.getElementById("email").value.trim();
     const alamat = document.getElementById("alamat").value.trim();
+    const foto = document.getElementById("foto").value.trim();
+    const instagram = document.getElementById("instagram").value.trim().replace(/^@/, "");
+    const tiktok = document.getElementById("tiktok").value.trim().replace(/^@/, "");
+    const linkedin = document.getElementById("linkedin").value.trim();
 
     saveButton.disabled = true;
     saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
@@ -394,6 +432,7 @@
         // ---- UPDATE (tidak mengubah username/password) ----
         await withTimeout(updateDoc(doc(db, "mahasiswa", editingUid), {
           nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+          foto, instagram, tiktok, linkedin,
           updatedAt: serverTimestamp(),
         }), 15000, "Simpan data mahasiswa");
         showPageMessage(`Data ${nama} berhasil diperbarui.`, "success");
@@ -422,6 +461,7 @@
 
         await withTimeout(setDoc(doc(db, "mahasiswa", uid), {
           nama, nim, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+          foto, instagram, tiktok, linkedin,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }), 15000, "Simpan profil mahasiswa");
@@ -446,6 +486,59 @@
   });
 
   loadMahasiswa().catch((err) => { console.error(err); showPageMessage("Gagal memuat data mahasiswa."); });
+
+  // ---------- reset password (lewat Cloud Function) ----------
+  const resetPasswordModalBackdrop = document.getElementById("resetPasswordModalBackdrop");
+  const resetPasswordTitle = document.getElementById("resetPasswordTitle");
+  const resetPasswordModalMessage = document.getElementById("resetPasswordModalMessage");
+  const resetPasswordForm = document.getElementById("resetPasswordForm");
+  const resetPasswordSaveButton = document.getElementById("resetPasswordSaveButton");
+  let resetTargetUid = null;
+
+  function showResetPasswordMessage(text, type = "error") {
+    resetPasswordModalMessage.textContent = text;
+    resetPasswordModalMessage.className = `message ${type}`;
+  }
+  function openResetPasswordModal(uid, nama) {
+    resetTargetUid = uid;
+    resetPasswordForm.reset();
+    showResetPasswordMessage("");
+    resetPasswordTitle.textContent = `Reset Password - ${nama || "Mahasiswa"}`;
+    resetPasswordModalBackdrop.classList.add("open");
+  }
+  function closeResetPasswordModal() { resetPasswordModalBackdrop.classList.remove("open"); }
+
+  document.getElementById("resetPasswordModalClose").addEventListener("click", closeResetPasswordModal);
+  document.getElementById("resetPasswordCancelButton").addEventListener("click", closeResetPasswordModal);
+  resetPasswordModalBackdrop.addEventListener("click", (e) => { if (e.target === resetPasswordModalBackdrop) closeResetPasswordModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeResetPasswordModal(); });
+
+  resetPasswordForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showResetPasswordMessage("");
+    const newPassword = document.getElementById("resetNewPassword").value;
+
+    resetPasswordSaveButton.disabled = true;
+    resetPasswordSaveButton.textContent = "Menyimpan...";
+
+    try {
+      const resetUserPassword = httpsCallable(functionsInstance, "resetUserPassword");
+      await withTimeout(resetUserPassword({ targetUid: resetTargetUid, newPassword }), 20000, "Reset password");
+      showResetPasswordMessage("Password berhasil direset.", "success");
+      setTimeout(closeResetPasswordModal, 1200);
+    } catch (err) {
+      console.error(err);
+      const isNotDeployed = err.code === "functions/not-found" || err.code === "functions/internal" || /CORS|Failed to fetch/i.test(err.message || "");
+      showResetPasswordMessage(
+        isNotDeployed
+          ? "Cloud Function belum di-deploy. Lihat README bagian 'Reset Password oleh Admin' untuk cara deploy-nya."
+          : (err.message || "Gagal reset password.")
+      );
+    } finally {
+      resetPasswordSaveButton.disabled = false;
+      resetPasswordSaveButton.textContent = "Reset Password";
+    }
+  });
 
   // ==================== IMPORT EXCEL ====================
 
