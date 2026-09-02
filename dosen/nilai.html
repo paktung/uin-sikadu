@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nilai - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=7">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Dosen</div></div>
+    </div>
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">D</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Dosen</div>
+      <div class="underline"></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Nilai</h1><p>Input nilai akhir mahasiswa per kelas. Bobot: Tugas 20% + UTS 30% + UAS 40% + Kehadiran 10%.</p></div>
+      <button id="saveAllButton" class="button-primary" disabled>Simpan Semua Nilai</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="kelasSelect">Pilih Kelas</label>
+        <select id="kelasSelect"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Nama</th><th>NIM</th><th>Tugas</th><th>UTS</th><th>UAS</th><th>Kehadiran</th><th>Nilai Akhir</th><th>Huruf</th></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;">Belum ada mahasiswa di kelas ini.</div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
+  import {
+    collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "D";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "D";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function gradeLetter(score) {
+    if (score >= 85) return "A";
+    if (score >= 75) return "B";
+    if (score >= 65) return "C";
+    if (score >= 50) return "D";
+    return "E";
+  }
+  const WEIGHTS = { tugas: 0.2, uts: 0.3, uas: 0.4, kehadiran: 0.1 };
+
+  renderDosenNav("nilai.html");
+  const { uid, profile } = await guardPage("dosen");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  const kelasSelect = document.getElementById("kelasSelect");
+  const saveAllButton = document.getElementById("saveAllButton");
+  let pesertaKelas = [];
+
+  async function loadKelasSaya() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) { kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`; return; }
+    const tahunId = tahunSnap.docs[0].id;
+
+    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
+    if (kelasSnap.empty) { kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`; return; }
+
+    const mkIds = [...new Set(kelasSnap.docs.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {};
+    mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    kelasSelect.innerHTML = kelasSnap.docs.map((d) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
+    }).join("");
+
+    await loadNilai();
+  }
+
+  function computeAndUpdateRow(tr) {
+    const tugas = Number(tr.querySelector(".n-tugas").value) || 0;
+    const uts = Number(tr.querySelector(".n-uts").value) || 0;
+    const uas = Number(tr.querySelector(".n-uas").value) || 0;
+    const kehadiran = Number(tr.querySelector(".n-kehadiran").value) || 0;
+    const akhir = Math.round(tugas * WEIGHTS.tugas + uts * WEIGHTS.uts + uas * WEIGHTS.uas + kehadiran * WEIGHTS.kehadiran);
+    tr.querySelector(".n-akhir").textContent = akhir;
+    tr.querySelector(".n-huruf").innerHTML = `<span class="badge active">${gradeLetter(akhir)}</span>`;
+  }
+
+  async function loadNilai() {
+    const kelasId = kelasSelect.value;
+    const tableBody = document.getElementById("tableBody");
+    const emptyState = document.getElementById("emptyState");
+    if (!kelasId) { tableBody.innerHTML = ""; saveAllButton.disabled = true; return; }
+
+    tableBody.innerHTML = `<tr><td colspan="8" class="empty-state">Memuat...</td></tr>`;
+
+    const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat peserta");
+    const mhsIds = krsSnap.docs.map((d) => d.data().mahasiswaId);
+    const mhsDocs = await Promise.all(mhsIds.map((id) => getDoc(doc(db, "mahasiswa", id))));
+    pesertaKelas = mhsDocs.filter((d) => d.exists()).map((d) => ({ uid: d.id, nama: d.data().nama, nim: d.data().nim }));
+    pesertaKelas.sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
+
+    if (pesertaKelas.length === 0) {
+      tableBody.innerHTML = "";
+      emptyState.style.display = "block";
+      saveAllButton.disabled = true;
+      return;
+    }
+    emptyState.style.display = "none";
+    saveAllButton.disabled = false;
+
+    const nilaiDocs = await Promise.all(pesertaKelas.map((m) => getDoc(doc(db, "nilai", `${kelasId}_${m.uid}`))));
+
+    tableBody.innerHTML = pesertaKelas.map((m, i) => {
+      const n = nilaiDocs[i].exists() ? nilaiDocs[i].data() : {};
+      return `
+        <tr data-mhs-uid="${m.uid}">
+          <td>${escapeHtml(m.nama || "-")}</td>
+          <td>${escapeHtml(m.nim || "-")}</td>
+          <td><input type="number" class="n-tugas" min="0" max="100" value="${n.tugasScore ?? ""}" style="width:64px;"></td>
+          <td><input type="number" class="n-uts" min="0" max="100" value="${n.utsScore ?? ""}" style="width:64px;"></td>
+          <td><input type="number" class="n-uas" min="0" max="100" value="${n.uasScore ?? ""}" style="width:64px;"></td>
+          <td><input type="number" class="n-kehadiran" min="0" max="100" value="${n.attendanceScore ?? ""}" style="width:64px;"></td>
+          <td class="n-akhir" style="font-weight:700;">${n.finalScore ?? "-"}</td>
+          <td class="n-huruf">${n.gradeLetter ? `<span class="badge active">${n.gradeLetter}</span>` : "-"}</td>
+        </tr>`;
+    }).join("");
+
+    tableBody.querySelectorAll("tr").forEach((tr) => {
+      tr.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", () => computeAndUpdateRow(tr)));
+      computeAndUpdateRow(tr);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadNilai().catch((err) => showPageMessage(err.message || "Gagal memuat nilai.")));
+
+  saveAllButton.addEventListener("click", async () => {
+    const kelasId = kelasSelect.value;
+    if (!kelasId) return;
+
+    saveAllButton.disabled = true;
+    saveAllButton.textContent = "Menyimpan...";
+
+    try {
+      const batch = writeBatch(db);
+      document.querySelectorAll("#tableBody tr[data-mhs-uid]").forEach((tr) => {
+        const mhsUid = tr.dataset.mhsUid;
+        const tugasScore = tr.querySelector(".n-tugas").value === "" ? null : Number(tr.querySelector(".n-tugas").value);
+        const utsScore = tr.querySelector(".n-uts").value === "" ? null : Number(tr.querySelector(".n-uts").value);
+        const uasScore = tr.querySelector(".n-uas").value === "" ? null : Number(tr.querySelector(".n-uas").value);
+        const attendanceScore = tr.querySelector(".n-kehadiran").value === "" ? null : Number(tr.querySelector(".n-kehadiran").value);
+        const finalScore = Number(tr.querySelector(".n-akhir").textContent) || 0;
+
+        batch.set(doc(db, "nilai", `${kelasId}_${mhsUid}`), {
+          mahasiswaId: mhsUid,
+          kelasKuliahId: kelasId,
+          tugasScore, utsScore, uasScore, attendanceScore,
+          finalScore, gradeLetter: gradeLetter(finalScore),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      });
+      await withTimeout(batch.commit(), 20000, "Simpan semua nilai");
+      showPageMessage("Semua nilai berhasil disimpan.", "success");
+    } catch (err) {
+      console.error(err);
+      showPageMessage(err.message || "Gagal menyimpan nilai.");
+    } finally {
+      saveAllButton.disabled = false;
+      saveAllButton.textContent = "Simpan Semua Nilai";
+    }
+  });
+
+  loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
+</script>
+
+</body>
+</html>

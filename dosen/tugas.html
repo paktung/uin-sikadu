@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tugas - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=7">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Dosen</div></div>
+    </div>
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">D</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Dosen</div>
+      <div class="underline"></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Tugas</h1><p>Kelola tugas &amp; nilai untuk kelas yang Anda ampu.</p></div>
+      <button id="addButton" class="button-primary" disabled>+ Tambah Tugas</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="kelasSelect">Pilih Kelas</label>
+        <select id="kelasSelect"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="tugasList"></div>
+      <div id="tugasEmpty" class="empty-state" style="display:none;">Belum ada tugas untuk kelas ini.</div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: TAMBAH/EDIT TUGAS -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Tambah Tugas</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="form-group"><label for="judul">Judul Tugas</label><input type="text" id="judul" required></div>
+      <div class="form-group"><label for="instruksi">Instruksi</label><textarea id="instruksi" rows="4"></textarea></div>
+      <div class="form-group"><label for="fileUrl">Link Lampiran (opsional)</label><input type="url" id="fileUrl" placeholder="https://..."></div>
+      <div class="form-grid-2">
+        <div class="form-group"><label for="deadline">Deadline</label><input type="datetime-local" id="deadline"></div>
+        <div class="form-group"><label for="maxScore">Nilai Maksimal</label><input type="number" id="maxScore" value="100" min="1"></div>
+      </div>
+      <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="published" style="width:auto;" checked>
+        <label for="published" style="margin:0;">Tampilkan ke mahasiswa</label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: SUBMISSION & PENILAIAN -->
+<div class="modal-backdrop" id="submissionModalBackdrop">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header"><h2 id="submissionModalTitle">Submission</h2><button class="modal-close" id="submissionModalClose">&times;</button></div>
+    <div id="submissionModalMessage" class="message"></div>
+    <div style="max-height:440px; overflow-y:auto;">
+      <table class="data-table" style="font-size:13px;">
+        <thead><tr><th>Nama</th><th>Status</th><th>Jawaban</th><th>Nilai</th><th></th></tr></thead>
+        <tbody id="submissionTableBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="button-secondary" id="submissionCloseButton">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderDosenNav } from "../assets/dosen-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
+  import {
+    collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc, getDocs, query, where, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "D";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "D";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtDeadline(iso) {
+    if (!iso) return "Tanpa deadline";
+    const d = new Date(iso);
+    return d.toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  renderDosenNav("tugas.html");
+  const { uid, profile } = await guardPage("dosen");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Dosen";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  const kelasSelect = document.getElementById("kelasSelect");
+  const addButton = document.getElementById("addButton");
+  let tugasRows = [];
+  let pesertaKelas = []; // { uid, nama, nim }
+
+  async function loadKelasSaya() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) { kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`; return; }
+    const tahunId = tahunSnap.docs[0].id;
+
+    const kelasSnap = await withTimeout(getDocs(query(collection(db, "kelasKuliah"), where("dosenId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat kelas saya");
+    if (kelasSnap.empty) { kelasSelect.innerHTML = `<option value="">Anda belum mengampu kelas periode ini</option>`; return; }
+
+    const mkIds = [...new Set(kelasSnap.docs.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {};
+    mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    kelasSelect.innerHTML = kelasSnap.docs.map((d) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
+    }).join("");
+
+    addButton.disabled = false;
+    await loadTugas();
+  }
+
+  async function loadPeserta(kelasId) {
+    const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat peserta kelas");
+    const mhsIds = krsSnap.docs.map((d) => d.data().mahasiswaId);
+    const mhsDocs = await Promise.all(mhsIds.map((id) => getDoc(doc(db, "mahasiswa", id))));
+    pesertaKelas = mhsDocs.filter((d) => d.exists()).map((d) => ({ uid: d.id, nama: d.data().nama, nim: d.data().nim }));
+    pesertaKelas.sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
+  }
+
+  async function loadTugas() {
+    const kelasId = kelasSelect.value;
+    const tugasList = document.getElementById("tugasList");
+    const tugasEmpty = document.getElementById("tugasEmpty");
+    if (!kelasId) { tugasList.innerHTML = ""; return; }
+
+    tugasList.innerHTML = `<p class="hint">Memuat...</p>`;
+    const snap = await withTimeout(getDocs(query(collection(db, "tugas"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat tugas");
+    tugasRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    tugasRows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+    tugasList.innerHTML = "";
+    tugasEmpty.style.display = tugasRows.length === 0 ? "block" : "none";
+
+    tugasRows.forEach((t) => {
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">${escapeHtml(t.judul)} ${t.published === false ? '<span class="badge inactive">Draft</span>' : '<span class="badge active">Tayang</span>'}</div>
+            <div class="meta"><span>Deadline: ${fmtDeadline(t.deadline)}</span><span>Maks nilai: ${escapeHtml(t.maxScore ?? 100)}</span></div>
+          </div>
+          <div class="row-actions">
+            <button class="button-secondary" data-action="submission" data-id="${t.id}">Lihat Submission</button>
+            <button class="button-ghost" data-action="edit" data-id="${t.id}">Edit</button>
+            <button class="button-danger" data-action="delete" data-id="${t.id}">Hapus</button>
+          </div>
+        </div>`;
+      tugasList.appendChild(card);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadTugas().catch((err) => showPageMessage(err.message || "Gagal memuat tugas.")));
+
+  document.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest('button[data-action="edit"]');
+    const delBtn = e.target.closest('button[data-action="delete"]');
+    const subBtn = e.target.closest('button[data-action="submission"]');
+
+    if (editBtn) {
+      const row = tugasRows.find((r) => r.id === editBtn.dataset.id);
+      if (row) openModal(row);
+    }
+    if (delBtn) {
+      if (!confirm("Hapus tugas ini? Submission mahasiswa yang sudah ada tidak otomatis terhapus.")) return;
+      try {
+        await withTimeout(deleteDoc(doc(db, "tugas", delBtn.dataset.id)), 15000, "Hapus tugas");
+        showPageMessage("Tugas dihapus.", "success");
+        loadTugas();
+      } catch (err) {
+        console.error(err);
+        showPageMessage(err.message || "Gagal menghapus tugas.");
+      }
+    }
+    if (subBtn) openSubmissionModal(subBtn.dataset.id);
+  });
+
+  // ---------- modal tambah/edit tugas ----------
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const itemForm = document.getElementById("itemForm");
+  const itemIdInput = document.getElementById("itemId");
+  const saveButton = document.getElementById("saveButton");
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function openModal(row = null) {
+    itemForm.reset();
+    showModalMessage("");
+    if (row) {
+      modalTitle.textContent = "Edit Tugas";
+      itemIdInput.value = row.id;
+      document.getElementById("judul").value = row.judul || "";
+      document.getElementById("instruksi").value = row.instruksi || "";
+      document.getElementById("fileUrl").value = row.fileUrl || "";
+      document.getElementById("deadline").value = row.deadline || "";
+      document.getElementById("maxScore").value = row.maxScore ?? 100;
+      document.getElementById("published").checked = row.published !== false;
+    } else {
+      modalTitle.textContent = "Tambah Tugas";
+      itemIdInput.value = "";
+      document.getElementById("maxScore").value = 100;
+    }
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeSubmissionModal(); } });
+
+  addButton.addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const editingId = itemIdInput.value;
+    const judul = document.getElementById("judul").value.trim();
+    const instruksi = document.getElementById("instruksi").value.trim();
+    const fileUrl = document.getElementById("fileUrl").value.trim();
+    const deadline = document.getElementById("deadline").value;
+    const maxScore = Number(document.getElementById("maxScore").value) || 100;
+    const published = document.getElementById("published").checked;
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      if (editingId) {
+        await withTimeout(updateDoc(doc(db, "tugas", editingId), {
+          judul, instruksi, fileUrl, deadline, maxScore, published, updatedAt: serverTimestamp(),
+        }), 15000, "Simpan tugas");
+      } else {
+        await withTimeout(addDoc(collection(db, "tugas"), {
+          kelasKuliahId: kelasSelect.value,
+          judul, instruksi, fileUrl, deadline, maxScore, published,
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        }), 15000, "Simpan tugas");
+      }
+      showPageMessage("Tugas berhasil disimpan.", "success");
+      closeModal();
+      loadTugas();
+    } catch (err) {
+      console.error(err);
+      showModalMessage(err.message || "Gagal menyimpan tugas.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  // ---------- modal submission & penilaian ----------
+  const submissionModalBackdrop = document.getElementById("submissionModalBackdrop");
+  const submissionModalTitle = document.getElementById("submissionModalTitle");
+  const submissionModalMessage = document.getElementById("submissionModalMessage");
+  const submissionTableBody = document.getElementById("submissionTableBody");
+  let activeTugasId = null;
+  let activeMaxScore = 100;
+
+  async function openSubmissionModal(tugasId) {
+    activeTugasId = tugasId;
+    const tugas = tugasRows.find((t) => t.id === tugasId);
+    activeMaxScore = tugas?.maxScore ?? 100;
+    submissionModalTitle.textContent = `Submission - ${tugas?.judul || ""}`;
+    submissionModalMessage.className = "message";
+    submissionTableBody.innerHTML = `<tr><td colspan="5" class="empty-state">Memuat...</td></tr>`;
+    submissionModalBackdrop.classList.add("open");
+
+    try {
+      await loadPeserta(kelasSelect.value);
+      if (pesertaKelas.length === 0) {
+        submissionTableBody.innerHTML = `<tr><td colspan="5" class="empty-state">Belum ada mahasiswa di kelas ini. Tambahkan lewat menu Peserta Kelas.</td></tr>`;
+        return;
+      }
+
+      const subDocs = await Promise.all(pesertaKelas.map((m) => getDoc(doc(db, "tugasSubmission", `${tugasId}_${m.uid}`))));
+      const subByMhs = {};
+      subDocs.forEach((d, i) => { if (d.exists()) subByMhs[pesertaKelas[i].uid] = d.data(); });
+
+      submissionTableBody.innerHTML = pesertaKelas.map((m) => {
+        const sub = subByMhs[m.uid];
+        const status = sub ? "Sudah kumpul" : "Belum kumpul";
+        const jawabanPreview = sub?.jawaban ? escapeHtml(sub.jawaban).slice(0, 80) + (sub.jawaban.length > 80 ? "..." : "") : "-";
+        return `
+          <tr data-mhs-uid="${m.uid}">
+            <td>${escapeHtml(m.nama || "-")}<br><span class="hint">${escapeHtml(m.nim || "-")}</span></td>
+            <td><span class="badge ${sub ? "active" : "inactive"}">${status}</span></td>
+            <td style="max-width:180px;">${jawabanPreview}${sub?.fileUrl ? `<br><a href="${escapeHtml(sub.fileUrl)}" target="_blank" rel="noopener">Lampiran</a>` : ""}</td>
+            <td><input type="number" class="score-input" min="0" max="${activeMaxScore}" value="${sub?.score ?? ""}" style="width:70px;" ${sub ? "" : "disabled"}></td>
+            <td><button class="button-secondary save-score-btn" ${sub ? "" : "disabled"}>Simpan</button></td>
+          </tr>`;
+      }).join("");
+    } catch (err) {
+      console.error(err);
+      submissionTableBody.innerHTML = `<tr><td colspan="5" class="empty-state">${escapeHtml(err.message || "Gagal memuat submission.")}</td></tr>`;
+    }
+  }
+
+  function closeSubmissionModal() { submissionModalBackdrop.classList.remove("open"); }
+  document.getElementById("submissionModalClose").addEventListener("click", closeSubmissionModal);
+  document.getElementById("submissionCloseButton").addEventListener("click", closeSubmissionModal);
+  submissionModalBackdrop.addEventListener("click", (e) => { if (e.target === submissionModalBackdrop) closeSubmissionModal(); });
+
+  submissionTableBody.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".save-score-btn");
+    if (!btn) return;
+    const row = btn.closest("tr");
+    const mhsUid = row.dataset.mhsUid;
+    const scoreInput = row.querySelector(".score-input");
+    const score = scoreInput.value === "" ? null : Number(scoreInput.value);
+
+    btn.disabled = true;
+    btn.textContent = "...";
+    try {
+      await withTimeout(setDoc(doc(db, "tugasSubmission", `${activeTugasId}_${mhsUid}`), {
+        score, gradedAt: serverTimestamp(),
+      }, { merge: true }), 15000, "Simpan nilai");
+      submissionModalMessage.textContent = "Nilai tersimpan.";
+      submissionModalMessage.className = "message success";
+    } catch (err) {
+      console.error(err);
+      submissionModalMessage.textContent = err.message || "Gagal menyimpan nilai.";
+      submissionModalMessage.className = "message error";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan";
+    }
+  });
+
+  loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
+</script>
+
+</body>
+</html>
