@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Mahasiswa - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=3">
+<link rel="stylesheet" href="../assets/style.css?v=4">
 </head>
 <body>
 
@@ -25,32 +25,214 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <div class="sidebar-user-row">
+        <div class="avatar" id="sidebarAvatar">M</div>
+        <div class="sidebar-user">
+          <div class="name-line" id="sidebarUser">Memuat...</div>
+          <div class="role-line" style="color:rgba(255,255,255,.5);">Mahasiswa</div>
+        </div>
+      </div>
       <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
     </div>
   </aside>
 
   <main class="main">
+
     <div class="page-header">
       <div>
         <h1 id="greeting">Dashboard</h1>
-        <p>Halaman mahasiswa sedang dalam pengembangan.</p>
+        <p>Profil dan ringkasan akademik Anda.</p>
+      </div>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <!-- PROFIL -->
+    <div class="profile-card">
+      <div class="avatar" id="profileAvatar" style="width:72px;height:72px;font-size:24px;">M</div>
+      <div class="profile-info">
+        <h2 id="profileNama">-</h2>
+        <div class="sub" id="profileNim">-</div>
+        <div class="profile-meta">
+          <div class="meta-item"><span class="k">Jenis Kelamin</span><span id="metaJk">-</span></div>
+          <div class="meta-item"><span class="k">Email</span><span id="metaEmail">-</span></div>
+          <div class="meta-item"><span class="k">No. WhatsApp</span><span id="metaWa">-</span></div>
+        </div>
+      </div>
+      <button id="editProfileButton" class="button-secondary">Edit Profil</button>
+    </div>
+
+    <div class="info-card-highlight">
+      <div class="stat-icon c1">📅</div>
+      <div>
+        <div class="title">Tahun Akademik Aktif</div>
+        <div class="value" id="tahunAktifLabel">Memuat...</div>
       </div>
     </div>
 
     <div class="card">
-      <p>Selamat datang! Fitur untuk melihat materi, mengumpulkan tugas, mengerjakan latihan, dan melihat nilai akan dibangun di folder <code>/mahasiswa</code> pada tahap berikutnya, setelah panel admin selesai.</p>
+      <h2 style="font-size:16px; margin-bottom:8px;">Segera Hadir</h2>
+      <p class="hint">KRS, Jadwal Kuliah, Materi, Tugas, Presensi, dan Nilai/KHS sedang dalam pengembangan tahap berikutnya. Untuk sekarang, pastikan profil Anda sudah lengkap dan benar lewat tombol "Edit Profil" di atas.</p>
     </div>
+
   </main>
 </div>
 
-<script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=3";
+<!-- MODAL: EDIT PROFIL -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2>Edit Profil</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="profileForm">
+      <div class="form-grid-2">
+        <div class="form-group span-2"><label for="nama">Nama Lengkap</label><input type="text" id="nama" required></div>
 
-  const { profile } = await guardPage("mahasiswa");
+        <div class="form-group">
+          <label for="jenisKelamin">Jenis Kelamin</label>
+          <select id="jenisKelamin">
+            <option value="">Pilih...</option>
+            <option value="Laki-laki">Laki-laki</option>
+            <option value="Perempuan">Perempuan</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="noWa">No. WhatsApp</label><input type="text" id="noWa"></div>
+
+        <div class="form-group"><label for="tempatLahir">Tempat Lahir</label><input type="text" id="tempatLahir"></div>
+        <div class="form-group"><label for="tanggalLahir">Tanggal Lahir</label><input type="date" id="tanggalLahir"></div>
+
+        <div class="form-group span-2"><label for="email">Email</label><input type="email" id="email"></div>
+        <div class="form-group span-2"><label for="alamat">Alamat</label><textarea id="alamat" rows="2"></textarea></div>
+      </div>
+      <p class="hint">NIM dan username login tidak bisa diubah sendiri. Hubungi admin kalau ada kesalahan.</p>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=4";
+  import { db } from "../assets/firebase-config.js?v=4";
+  import { withTimeout } from "../assets/with-timeout.js?v=4";
+  import {
+    doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "M";
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "M";
+  }
+
+  const { uid, profile } = await guardPage("mahasiswa");
   document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Mahasiswa";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
   document.getElementById("greeting").textContent = `Halo, ${profile.nama || profile.username}`;
   document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  let mhsData = {};
+
+  async function loadMahasiswaProfile() {
+    const snap = await withTimeout(getDoc(doc(db, "mahasiswa", uid)), 15000, "Memuat profil mahasiswa");
+    mhsData = snap.exists() ? snap.data() : {};
+    renderProfile();
+  }
+
+  function renderProfile() {
+    const nama = mhsData.nama || profile.nama || profile.username;
+    document.getElementById("profileNama").textContent = nama;
+    document.getElementById("profileAvatar").textContent = initials(nama);
+    document.getElementById("profileNim").textContent = mhsData.nim ? `NIM ${mhsData.nim}` : "NIM belum diisi";
+    document.getElementById("metaJk").textContent = mhsData.jenisKelamin || "-";
+    document.getElementById("metaEmail").textContent = mhsData.email || "-";
+    document.getElementById("metaWa").textContent = mhsData.noWa || "-";
+  }
+
+  async function loadTahunAktif() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    const label = document.getElementById("tahunAktifLabel");
+    if (tahunSnap.empty) {
+      label.textContent = "Belum ada periode aktif";
+    } else {
+      const t = tahunSnap.docs[0].data();
+      label.textContent = `${t.tahun} - Semester ${t.semester}`;
+    }
+  }
+
+  // ---------- edit profil ----------
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalMessage = document.getElementById("modalMessage");
+  const profileForm = document.getElementById("profileForm");
+  const saveButton = document.getElementById("saveButton");
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function openModal() {
+    showModalMessage("");
+    document.getElementById("nama").value = mhsData.nama || "";
+    document.getElementById("jenisKelamin").value = mhsData.jenisKelamin || "";
+    document.getElementById("noWa").value = mhsData.noWa || "";
+    document.getElementById("tempatLahir").value = mhsData.tempatLahir || "";
+    document.getElementById("tanggalLahir").value = mhsData.tanggalLahir || "";
+    document.getElementById("email").value = mhsData.email || "";
+    document.getElementById("alamat").value = mhsData.alamat || "";
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  document.getElementById("editProfileButton").addEventListener("click", openModal);
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  profileForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+
+    const nama = document.getElementById("nama").value.trim();
+    const jenisKelamin = document.getElementById("jenisKelamin").value;
+    const noWa = document.getElementById("noWa").value.trim();
+    const tempatLahir = document.getElementById("tempatLahir").value.trim();
+    const tanggalLahir = document.getElementById("tanggalLahir").value;
+    const email = document.getElementById("email").value.trim();
+    const alamat = document.getElementById("alamat").value.trim();
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      await withTimeout(updateDoc(doc(db, "mahasiswa", uid), {
+        nama, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+        updatedAt: serverTimestamp(),
+      }), 15000, "Simpan profil");
+
+      mhsData = { ...mhsData, nama, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat };
+      renderProfile();
+      closeModal();
+      showPageMessage("Profil berhasil diperbarui.", "success");
+    } catch (err) {
+      console.error(err);
+      showModalMessage(err.message || "Gagal menyimpan profil. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadMahasiswaProfile().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat profil."); });
+  loadTahunAktif().catch((err) => console.error(err));
 </script>
 
 </body>
