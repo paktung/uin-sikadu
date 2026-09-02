@@ -16,8 +16,8 @@
     gap: 18px;
     color: white;
   }
-  .splash .logo { width: 84px; height: 84px; font-size: 22px; }
-  .splash p { color: rgba(255,255,255,.65); font-size: 14px; }
+  .splash .logo { width: 68px; height: 68px; }
+  .splash p { color: rgba(255,255,255,.65); font-size: 14px; text-align: center; max-width: 320px; }
   .spinner {
     width: 22px; height: 22px;
     border: 3px solid rgba(255,255,255,.25);
@@ -55,7 +55,7 @@
   </script>
 
   <script type="module">
-    import { auth, db, ROLE_HOME } from "./assets/firebase-config.js";
+    import { auth, db, normalizeLevel, goToRoleHome } from "./assets/firebase-config.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -80,7 +80,7 @@
       resolved = true;
 
       if (!user) {
-        window.location.href = "login.html";
+        window.location.href = window.location.origin + "/login.html";
         return;
       }
 
@@ -88,22 +88,27 @@
         const snap = await getDoc(doc(db, "users", user.uid));
 
         if (!snap.exists() || snap.data().isActive === false) {
-          window.location.href = "login.html";
+          window.location.href = window.location.origin + "/login.html";
           return;
         }
 
-        const level = snap.data().level;
-        const target = ROLE_HOME[level];
+        const profile = snap.data();
+        const level = normalizeLevel(profile.level);
 
-        if (!target) {
+        sessionStorage.setItem("sikadu_uid", user.uid);
+        sessionStorage.setItem("sikadu_username", profile.username || "");
+        sessionStorage.setItem("sikadu_nama", profile.nama || "");
+        sessionStorage.setItem("sikadu_level", level);
+
+        if (!["admin", "dosen", "mahasiswa"].includes(level)) {
           statusText.textContent = "Akun ini belum memiliki peran (level) yang valid.";
           return;
         }
 
-        window.location.href = target.replace(/^\//, "");
+        goToRoleHome(level);
       } catch (err) {
         console.error(err);
-        window.location.href = "login.html";
+        window.location.href = window.location.origin + "/login.html";
       }
     });
   </script>
