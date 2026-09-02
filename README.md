@@ -1,8 +1,20 @@
 # SIKADU
 
-Sistem Informasi Akademik & Pembelajaran — dibangun di atas Firebase
-(Authentication + Firestore). Struktur folder mengikuti tiga peran: admin,
-dosen, mahasiswa.
+## Perubahan arsitektur penting: peserta kelas ditentukan DOSEN, bukan mahasiswa
+
+Sistem ini adalah **LMS untuk dosen**, bukan sistem pendaftaran mandiri ala
+kampus. Jadi:
+
+- **Dosen** yang menentukan siapa saja mahasiswa di kelasnya, lewat menu
+  **Peserta Kelas** (`dosen/peserta.html`) — cari mahasiswa by nama/NIM,
+  tambahkan ke kelas, atau keluarkan.
+- **Mahasiswa** hanya bisa **melihat** kelas yang sudah didaftarkan dosen
+  untuknya (`mahasiswa/krs.html`, sekarang jadi halaman read-only "Kelas
+  Saya"), tidak ada tombol pilih/ambil kelas sendiri.
+- Koleksi Firestore `krs` tetap sama strukturnya, cuma **siapa yang boleh
+  menulis** yang berubah: dulu mahasiswa (`mahasiswaId == auth.uid`),
+  sekarang dosen pemilik kelas (`isDosenOwnsKelas`). Kalau kamu publish
+  rules versi lama, penambahan peserta oleh dosen akan gagal.
 
 ## ⚠️ Kalau muncul "Missing or insufficient permissions"
 
@@ -15,22 +27,14 @@ Bukan bug kode. Cara pasti memperbaikinya:
 3. Klik tombol **Publish** di kanan atas.
 4. Tunggu ~30 detik, lalu hard refresh browser (`Ctrl+Shift+R`) dan coba lagi.
 
-Rules ini sudah berubah beberapa kali seiring fitur baru ditambahkan (krs,
-materi, pertemuan, absensi, dst). Kalau kamu publish rules versi lama,
-halaman KRS/Materi/Presensi/Dosen/Mahasiswa akan selalu kena error ini.
-**Selalu copy dari file `firestore.rules` yang paling baru di paket ini.**
-
 ## Sebelum deploy ulang - checklist wajib
 
 1. **Hapus semua file lama di server, upload SEMUA isi zip ini sekaligus.**
-   Banyak file saling `import` berdasarkan nama persis — campur versi
-   lama+baru akan error.
-2. **Publish ulang `firestore.rules`** (lihat bagian di atas).
+2. **Publish ulang `firestore.rules`** (lihat bagian di atas — rules KRS berubah lagi ronde ini).
 3. **Hard refresh** browser (`Ctrl+Shift+R` / `Cmd+Shift+R`) setelah upload.
-   Semua asset lokal sekarang versi `?v=6`.
+   Semua asset lokal sekarang versi `?v=7`.
 4. Kalau Firestore memunculkan error **"query requires an index"** di
-   Console (F12), klik link yang muncul di pesan error itu — link otomatis
-   dari Firebase untuk membuat index yang dibutuhkan (~1-2 menit).
+   Console (F12), klik link yang muncul di pesan error itu.
 
 ## Status fitur per peran
 
@@ -38,7 +42,7 @@ halaman KRS/Materi/Presensi/Dosen/Mahasiswa akan selalu kena error ini.
 |---|---|---|---|
 | Master data (fakultas, prodi, matkul, tahun akademik, kelas) | ✅ | - | - |
 | Profil + edit profil | ✅ (kelola semua) | ✅ | ✅ |
-| KRS (ambil/batal kelas) | - | - | ✅ |
+| Peserta Kelas (dosen tentukan siapa masuk kelasnya) | - | ✅ | lihat saja |
 | Materi | ✅ (lewat admin, kalau perlu) | ✅ (CRUD per kelas) | ✅ (lihat, per kelas) |
 | Presensi | - | ✅ (buat pertemuan + catat kehadiran) | ✅ (lihat rekap) |
 | Import Excel mahasiswa | ✅ | - | - |
@@ -55,12 +59,11 @@ alur pengumpulan yang lebih hati-hati.
   gelap transparan supaya teks tetap kebaca.
 - **Avatar besar di tengah sidebar** (foto/inisial + nama + garis aksen
   warna), bukan kecil di pojok bawah.
-- **Widget kalender** (bulan berjalan, tanggal hari ini ditandai) di
-  dashboard Admin, Dosen, dan Mahasiswa.
-- Nuansa hijau-emas islami dipakai konsisten di semua komponen (bukan
-  warna oranye/pink dari referensi awal manapun).
-- Dashboard admin/dosen/mahasiswa full-bleed (sidebar + konten mengisi
-  layar penuh), tidak ada bingkai/kotak mengambang di tengah.
+- Nuansa hijau-emas islami dipakai konsisten di semua komponen.
+- Dashboard admin/dosen/mahasiswa full-bleed, tidak ada bingkai/kotak
+  mengambang di tengah.
+- **Tidak ada widget kalender** — sempat ditambahkan sebagai elemen dekoratif
+  meniru referensi desain, tapi dihapus lagi karena tidak relevan untuk LMS ini.
 
 ## Nama vs username
 
@@ -78,7 +81,7 @@ tersimpan di **Firestore**, koleksi utama:
 - `users/{uid}` — username, level (admin/dosen/mahasiswa), isActive, nama.
 - `dosen/{uid}`, `mahasiswa/{uid}` — profil masing-masing, `uid` = Firebase Auth UID.
 - `fakultas`, `programStudi`, `mataKuliah`, `tahunAkademik`, `kelasKuliah` — master data akademik (dikelola admin).
-- `krs` — mahasiswa mengambil kelas (mahasiswaId, kelasKuliahId, tahunAkademikId).
+- `krs` — roster kelas, DITULIS OLEH DOSEN pemilik kelas (mahasiswaId, kelasKuliahId, tahunAkademikId).
 - `materi` — per kelasKuliahId, dikelola dosen pemilik kelas.
 - `pertemuan`, `absensi` — presensi per kelas per pertemuan.
 - `pengumuman` — pengumuman umum (dikelola admin).
@@ -94,6 +97,8 @@ tersimpan di **Firestore**, koleksi utama:
    sekali, selama koleksi `users` masih kosong).
 6. Login sebagai admin → isi Fakultas → Program Studi → Mata Kuliah →
    Tahun Akademik (aktifkan salah satu) → Kelas Kuliah → Dosen → Mahasiswa.
+7. Login sebagai dosen → menu **Peserta Kelas** → tambahkan mahasiswa ke
+   kelas yang diampu.
 
 ## Keterbatasan yang perlu kamu tahu
 
@@ -107,6 +112,4 @@ tersimpan di **Firestore**, koleksi utama:
 
 - Bangun **Tugas** (dosen beri tugas, mahasiswa kumpulkan, dosen menilai).
 - Bangun **Nilai/KHS** (rekap nilai per mahasiswa per kelas).
-- Pertimbangkan migrasi sebagian data ke SQL/Data Connect kalau memang
-  dibutuhkan nanti (laporan lintas-tabel yang kompleks, dsb) — bukan
-  keharusan teknis untuk saat ini.
+

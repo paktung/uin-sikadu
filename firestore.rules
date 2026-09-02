@@ -62,11 +62,14 @@ service cloud.firestore {
     match /kelasKuliah/{id}   { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /pengumuman/{id}    { allow read: if isSignedIn(); allow write: if isAdmin(); }
 
-    // ---------------- KRS (mahasiswa isi sendiri) ----------------
+    // ---------------- KRS (roster kelas) ----------------
+    // Diisi oleh DOSEN pemilik kelas (LMS: dosen yang menentukan peserta),
+    // bukan mahasiswa mendaftar sendiri. Mahasiswa hanya bisa membaca
+    // (lihat kelas.html mereka sendiri), tidak bisa create/delete.
     match /krs/{id} {
       allow read: if isSignedIn();
-      allow create: if isAdmin() || (isSignedIn() && request.resource.data.mahasiswaId == request.auth.uid);
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.mahasiswaId == request.auth.uid);
+      allow create: if isAdmin() || isDosenOwnsKelas(request.resource.data.kelasKuliahId);
+      allow delete: if isAdmin() || isDosenOwnsKelas(resource.data.kelasKuliahId);
       allow update: if isAdmin();
     }
 
