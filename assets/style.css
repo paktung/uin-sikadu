@@ -285,7 +285,122 @@ input:focus, select:focus, textarea:focus {
 .page-header h1 { font-size: 24px; margin-bottom: 4px; }
 .page-header p { color: var(--muted); font-size: 14px; }
 
-/* ============ CARDS / STATS ============ */
+/* ============ AVATAR ============ */
+
+.avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: white;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+}
+
+.sidebar-user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sidebar-user-row .avatar { width: 36px; height: 36px; font-size: 13px; }
+.sidebar-user-row .sidebar-user { margin-bottom: 0; }
+.sidebar-user-row .sidebar-user .name-line { color: white; font-weight: 700; font-size: 13px; }
+.sidebar-user-row .sidebar-user .role-line { font-size: 11px; }
+
+/* ============ ELEGANT ICON STAT CARDS ============ */
+
+.stat-grid-elegant {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card-elegant {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: .15s;
+}
+.stat-card-elegant:hover { box-shadow: 0 8px 24px rgba(0,0,0,.06); transform: translateY(-1px); }
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.stat-card-elegant .stat-text .label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.stat-card-elegant .stat-text .value { font-size: 24px; font-weight: 800; color: var(--ink); }
+
+/* Palet ikon - variasi warna untuk keterbacaan data, tetap dalam nuansa
+   hijau-emas islami sebagai basis, dengan aksen teal/biru untuk variasi. */
+.stat-icon.c1 { background: #dcfce7; color: #04593f; }
+.stat-icon.c2 { background: #fef3c7; color: #92400e; }
+.stat-icon.c3 { background: #dbeafe; color: #1e40af; }
+.stat-icon.c4 { background: #e0e7ff; color: #3730a3; }
+.stat-icon.c5 { background: #ccfbf1; color: #0f766e; }
+.stat-icon.c6 { background: #fce7f3; color: #9d174d; }
+
+/* ============ PROFILE CARD ============ */
+
+.profile-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.profile-card .avatar { width: 72px; height: 72px; font-size: 24px; }
+.profile-card .profile-info { flex: 1; min-width: 180px; }
+.profile-card .profile-info h2 { font-size: 19px; margin-bottom: 2px; }
+.profile-card .profile-info .sub { color: var(--muted); font-size: 13.5px; }
+.profile-card .profile-meta {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.profile-card .profile-meta .meta-item { font-size: 13px; }
+.profile-card .profile-meta .meta-item .k { color: var(--muted); display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
+
+.info-card-highlight {
+  background: linear-gradient(135deg, rgba(26,155,98,.08), rgba(201,162,75,.06));
+  border: 1px solid rgba(26,155,98,.18);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.info-card-highlight .stat-icon { background: white; }
+.info-card-highlight .title { font-size: 13px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
+.info-card-highlight .value { font-size: 17px; font-weight: 700; color: var(--ink); }
+
+.class-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 12px;
+}
+.class-card .title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.class-card .meta { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+
+
 
 .card {
   background: var(--surface);
