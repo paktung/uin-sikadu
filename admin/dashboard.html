@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Admin - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=3">
+<link rel="stylesheet" href="../assets/style.css?v=5">
 </head>
 <body>
 
@@ -23,7 +23,13 @@
     <nav class="sidebar-nav" id="sidebarNav"></nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <div class="sidebar-user-row">
+        <div class="avatar" id="sidebarAvatar">A</div>
+        <div class="sidebar-user">
+          <div class="name-line" id="sidebarUser">Memuat...</div>
+          <div class="role-line" style="color:rgba(255,255,255,.5);">Administrator</div>
+        </div>
+      </div>
       <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
     </div>
   </aside>
@@ -39,18 +45,39 @@
 
     <div id="pageMessage" class="message"></div>
 
-    <div class="stat-grid">
-      <div class="stat-card"><div class="label">Fakultas</div><div class="value" id="statFakultas">-</div></div>
-      <div class="stat-card"><div class="label">Program Studi</div><div class="value" id="statProdi">-</div></div>
-      <div class="stat-card"><div class="label">Mata Kuliah</div><div class="value" id="statMataKuliah">-</div></div>
-      <div class="stat-card"><div class="label">Kelas Kuliah</div><div class="value" id="statKelas">-</div></div>
-      <div class="stat-card"><div class="label">Total Dosen</div><div class="value" id="statDosen">-</div></div>
-      <div class="stat-card"><div class="label">Total Mahasiswa</div><div class="value" id="statMahasiswa">-</div></div>
+    <div class="info-card-highlight">
+      <div class="stat-icon c1">📅</div>
+      <div>
+        <div class="title">Tahun Akademik Aktif</div>
+        <div class="value" id="tahunAktifLabel">Memuat...</div>
+      </div>
     </div>
 
-    <div class="card" style="margin-bottom: 20px;">
-      <h2 style="font-size:16px; margin-bottom:4px;">Tahun Akademik Aktif</h2>
-      <p id="tahunAktifLabel" class="hint" style="font-size:14px; margin-top:6px;">Memuat...</p>
+    <div class="stat-grid-elegant">
+      <div class="stat-card-elegant">
+        <div class="stat-icon c1">🕌</div>
+        <div class="stat-text"><div class="label">Fakultas</div><div class="value" id="statFakultas">-</div></div>
+      </div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c2">🎓</div>
+        <div class="stat-text"><div class="label">Program Studi</div><div class="value" id="statProdi">-</div></div>
+      </div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c3">📚</div>
+        <div class="stat-text"><div class="label">Mata Kuliah</div><div class="value" id="statMataKuliah">-</div></div>
+      </div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c4">🏫</div>
+        <div class="stat-text"><div class="label">Kelas Kuliah</div><div class="value" id="statKelas">-</div></div>
+      </div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c5">👨‍🏫</div>
+        <div class="stat-text"><div class="label">Total Dosen</div><div class="value" id="statDosen">-</div></div>
+      </div>
+      <div class="stat-card-elegant">
+        <div class="stat-icon c6">🧑‍🎓</div>
+        <div class="stat-text"><div class="label">Total Mahasiswa</div><div class="value" id="statMahasiswa">-</div></div>
+      </div>
     </div>
 
     <div class="card">
@@ -71,13 +98,19 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=3";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=3";
-  import { db } from "../assets/firebase-config.js?v=3";
-  import { withTimeout } from "../assets/with-timeout.js?v=3";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
   import {
     collection, query, where, getCountFromServer, getDocs,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "A";
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "A";
+  }
 
   renderAdminNav("dashboard.html");
   const { profile } = await guardPage("admin");
@@ -87,8 +120,10 @@
   console.log("Level:", sessionStorage.getItem("sikadu_level"));
   console.log("Profile:", profile);
 
-  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
-  document.getElementById("greeting").textContent = `Halo, ${profile.nama || profile.username}`;
+  const displayName = profile.nama || profile.username || "Admin";
+  document.getElementById("sidebarUser").textContent = displayName;
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("greeting").textContent = `Halo, ${displayName}`;
   document.getElementById("logoutButton").addEventListener("click", logout);
 
   async function loadStats() {
@@ -111,7 +146,7 @@
 
     const tahunLabel = document.getElementById("tahunAktifLabel");
     if (tahunSnap.empty) {
-      tahunLabel.textContent = "Belum ada tahun akademik yang diaktifkan. Buka menu Tahun Akademik untuk mengaktifkan salah satu periode.";
+      tahunLabel.textContent = "Belum ada periode aktif";
     } else {
       const t = tahunSnap.docs[0].data();
       tahunLabel.textContent = `${t.tahun} - Semester ${t.semester}`;

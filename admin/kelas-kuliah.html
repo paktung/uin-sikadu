@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kelas Kuliah - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=3">
+<link rel="stylesheet" href="../assets/style.css?v=5">
 </head>
 <body>
 
@@ -37,7 +37,7 @@
       </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
-          <thead><tr><th>Kode Kelas</th><th>Mata Kuliah</th><th>Dosen</th><th>Tahun Akademik</th><th>Kapasitas</th><th></th></tr></thead>
+          <thead><tr><th>Kode Kelas</th><th>Mata Kuliah</th><th>Dosen</th><th>Tahun Akademik</th><th>Jadwal</th><th>Kapasitas</th><th></th></tr></thead>
           <tbody id="tableBody"></tbody>
         </table>
       </div>
@@ -69,6 +69,18 @@
         </div>
         <div class="form-group"><label for="kodeKelas">Kode Kelas</label><input type="text" id="kodeKelas" placeholder="mis. A" required></div>
         <div class="form-group"><label for="kapasitas">Kapasitas</label><input type="number" id="kapasitas" min="1" value="40" required></div>
+
+        <div class="form-group">
+          <label for="hari">Hari</label>
+          <select id="hari">
+            <option value="">Belum ditentukan</option>
+            <option>Senin</option><option>Selasa</option><option>Rabu</option>
+            <option>Kamis</option><option>Jumat</option><option>Sabtu</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="ruang">Ruang</label><input type="text" id="ruang" placeholder="mis. R.301"></div>
+        <div class="form-group"><label for="jamMulai">Jam Mulai</label><input type="time" id="jamMulai"></div>
+        <div class="form-group"><label for="jamSelesai">Jam Selesai</label><input type="time" id="jamSelesai"></div>
       </div>
       <div class="modal-actions">
         <button type="button" class="button-secondary" id="cancelButton">Batal</button>
@@ -79,10 +91,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=3";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=3";
-  import { db } from "../assets/firebase-config.js?v=3";
-  import { withTimeout } from "../assets/with-timeout.js?v=3";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=5";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=5";
+  import { db } from "../assets/firebase-config.js?v=5";
+  import { withTimeout } from "../assets/with-timeout.js?v=5";
   import {
     collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -183,6 +195,7 @@
         <td>${escapeHtml(mkNama(r.mataKuliahId))}</td>
         <td>${escapeHtml(dosenNama(r.dosenId))}</td>
         <td>${escapeHtml(tahunLabel(r.tahunAkademikId))}</td>
+        <td>${r.hari ? escapeHtml(`${r.hari} ${r.jamMulai || ""}-${r.jamSelesai || ""} ${r.ruang || ""}`) : "-"}</td>
         <td>${escapeHtml(r.kapasitas ?? "-")}</td>
         <td>
           <div class="row-actions">
@@ -228,6 +241,10 @@
       tahunSelect.value = row.tahunAkademikId || "";
       document.getElementById("kodeKelas").value = row.kodeKelas || "";
       document.getElementById("kapasitas").value = row.kapasitas || 40;
+      document.getElementById("hari").value = row.hari || "";
+      document.getElementById("ruang").value = row.ruang || "";
+      document.getElementById("jamMulai").value = row.jamMulai || "";
+      document.getElementById("jamSelesai").value = row.jamSelesai || "";
     } else {
       modalTitle.textContent = "Buka Kelas Kuliah";
       itemIdInput.value = "";
@@ -251,6 +268,10 @@
     const tahunAkademikId = tahunSelect.value;
     const kodeKelas = document.getElementById("kodeKelas").value.trim().toUpperCase();
     const kapasitas = Number(document.getElementById("kapasitas").value);
+    const hari = document.getElementById("hari").value;
+    const ruang = document.getElementById("ruang").value.trim();
+    const jamMulai = document.getElementById("jamMulai").value;
+    const jamSelesai = document.getElementById("jamSelesai").value;
 
     if (!mataKuliahId || !dosenId || !tahunAkademikId) {
       showModalMessage("Mata kuliah, dosen, dan tahun akademik wajib dipilih.");
@@ -273,7 +294,7 @@
     saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
 
     try {
-      const payload = { mataKuliahId, dosenId, tahunAkademikId, kodeKelas, kapasitas, updatedAt: serverTimestamp() };
+      const payload = { mataKuliahId, dosenId, tahunAkademikId, kodeKelas, kapasitas, hari, ruang, jamMulai, jamSelesai, updatedAt: serverTimestamp() };
       if (editingId) {
         await withTimeout(updateDoc(doc(db, "kelasKuliah", editingId), payload), 15000, "Simpan kelas kuliah");
         showPageMessage(`Kelas berhasil diperbarui.`, "success");
