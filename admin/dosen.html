@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Dosen - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=8">
+<link rel="stylesheet" href="../assets/style.css?v=9">
 </head>
 <body>
 
@@ -124,6 +124,11 @@
           <label for="bidangKeahlian">Bidang Keahlian</label>
           <input type="text" id="bidangKeahlian" placeholder="mis. Rekayasa Perangkat Lunak">
         </div>
+
+        <div class="form-group span-2">
+          <label for="foto">Link Foto Profil</label>
+          <input type="url" id="foto" placeholder="https://i.imgur.com/... atau https://res.cloudinary.com/...">
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -151,12 +156,12 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=8";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=8";
-  import { db, functionsInstance } from "../assets/firebase-config.js?v=8";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=9";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=9";
+  import { db, functionsInstance } from "../assets/firebase-config.js?v=9";
   import { httpsCallable } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js";
-  import { withTimeout } from "../assets/with-timeout.js?v=8";
-  import { createAuthUser } from "../assets/create-auth-user.js?v=8";
+  import { withTimeout } from "../assets/with-timeout.js?v=9";
+  import { createAuthUser } from "../assets/create-auth-user.js?v=9";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -312,6 +317,7 @@
       document.getElementById("email").value = row.dosen.email || "";
       document.getElementById("noWa").value = row.dosen.noWa || "";
       document.getElementById("bidangKeahlian").value = row.dosen.bidangKeahlian || "";
+      document.getElementById("foto").value = row.dosen.foto || "";
       usernameInput.value = row.user.username || "";
       usernameInput.disabled = true;
       passwordGroup.style.display = "none";
@@ -349,6 +355,7 @@
     const email = document.getElementById("email").value.trim();
     const noWa = document.getElementById("noWa").value.trim();
     const bidangKeahlian = document.getElementById("bidangKeahlian").value.trim();
+    const foto = document.getElementById("foto").value.trim();
 
     saveButton.disabled = true;
     saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
@@ -357,7 +364,7 @@
       if (editingUid) {
         // ---- UPDATE (tidak mengubah username/password) ----
         await withTimeout(updateDoc(doc(db, "dosen", editingUid), {
-          nama, nidn, email, noWa, bidangKeahlian, updatedAt: serverTimestamp(),
+          nama, nidn, email, noWa, bidangKeahlian, foto, updatedAt: serverTimestamp(),
         }), 15000, "Simpan data dosen");
         showPageMessage(`Data ${nama} berhasil diperbarui.`, "success");
       } else {
@@ -384,7 +391,7 @@
         }), 15000, "Simpan profil akun");
 
         await withTimeout(setDoc(doc(db, "dosen", uid), {
-          nama, nidn, email, noWa, bidangKeahlian,
+          nama, nidn, email, noWa, bidangKeahlian, foto,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }), 15000, "Simpan profil dosen");
