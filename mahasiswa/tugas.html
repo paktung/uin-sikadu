@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tugas - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=7">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Mahasiswa</div></div>
+    </div>
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">M</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Mahasiswa</div>
+      <div class="underline"></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Tugas</h1><p>Tugas dari kelas yang Anda ikuti.</p></div>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="kelasSelect">Pilih Kelas</label>
+        <select id="kelasSelect"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="tugasList"></div>
+      <div id="tugasEmpty" class="empty-state" style="display:none;">Belum ada tugas untuk kelas ini.</div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL: KUMPULKAN TUGAS -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Kumpulkan Tugas</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <div id="tugasDetail" class="hint" style="margin-bottom:14px;"></div>
+    <form id="itemForm">
+      <div class="form-group"><label for="jawaban">Jawaban</label><textarea id="jawaban" rows="5"></textarea></div>
+      <div class="form-group"><label for="fileUrl">Link Lampiran (opsional)</label><input type="url" id="fileUrl" placeholder="https://..."></div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Kumpulkan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
+  import {
+    collection, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "M";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "M";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtDeadline(iso) {
+    if (!iso) return "Tanpa deadline";
+    return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  renderMahasiswaNav("tugas.html");
+  const { uid, profile } = await guardPage("mahasiswa");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Mahasiswa";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  const kelasSelect = document.getElementById("kelasSelect");
+  let tugasRows = [];
+
+  async function loadKelasSaya() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    if (tahunSnap.empty) { kelasSelect.innerHTML = `<option value="">Belum ada tahun akademik aktif</option>`; return; }
+    const tahunId = tahunSnap.docs[0].id;
+
+    const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("mahasiswaId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat KRS");
+    if (krsSnap.empty) {
+      kelasSelect.innerHTML = `<option value="">Anda belum terdaftar di kelas manapun</option>`;
+      document.getElementById("tugasEmpty").style.display = "block";
+      document.getElementById("tugasEmpty").textContent = "Anda belum terdaftar di kelas manapun. Hubungi dosen.";
+      return;
+    }
+
+    const kelasIds = krsSnap.docs.map((d) => d.data().kelasKuliahId);
+    const kelasDocs = await Promise.all(kelasIds.map((id) => getDoc(doc(db, "kelasKuliah", id))));
+    const validKelas = kelasDocs.filter((d) => d.exists());
+    const mkIds = [...new Set(validKelas.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {};
+    mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    kelasSelect.innerHTML = validKelas.map((d) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
+    }).join("");
+
+    await loadTugas();
+  }
+
+  async function loadTugas() {
+    const kelasId = kelasSelect.value;
+    const tugasList = document.getElementById("tugasList");
+    const tugasEmpty = document.getElementById("tugasEmpty");
+    if (!kelasId) { tugasList.innerHTML = ""; return; }
+
+    tugasList.innerHTML = `<p class="hint">Memuat...</p>`;
+    const snap = await withTimeout(getDocs(query(collection(db, "tugas"), where("kelasKuliahId", "==", kelasId), where("published", "==", true))), 15000, "Memuat tugas");
+    tugasRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    tugasRows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+    tugasEmpty.style.display = tugasRows.length === 0 ? "block" : "none";
+    tugasEmpty.textContent = "Belum ada tugas untuk kelas ini.";
+    tugasList.innerHTML = "";
+
+    const subDocs = await Promise.all(tugasRows.map((t) => getDoc(doc(db, "tugasSubmission", `${t.id}_${uid}`))));
+
+    tugasRows.forEach((t, i) => {
+      const sub = subDocs[i].exists() ? subDocs[i].data() : null;
+      const now = new Date();
+      const deadlinePassed = t.deadline && new Date(t.deadline) < now;
+      let statusBadge;
+      if (sub && sub.score != null) statusBadge = `<span class="badge active">Dinilai: ${sub.score}/${t.maxScore ?? 100}</span>`;
+      else if (sub) statusBadge = `<span class="badge active">Sudah dikumpulkan</span>`;
+      else if (deadlinePassed) statusBadge = `<span class="badge inactive">Terlambat</span>`;
+      else statusBadge = `<span class="badge inactive">Belum dikumpulkan</span>`;
+
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">${escapeHtml(t.judul)} ${statusBadge}</div>
+            <div class="meta"><span>Deadline: ${fmtDeadline(t.deadline)}</span></div>
+            ${t.instruksi ? `<p style="font-size:13.5px; margin-top:6px; white-space:pre-wrap;">${escapeHtml(t.instruksi)}</p>` : ""}
+            ${t.fileUrl ? `<a href="${escapeHtml(t.fileUrl)}" target="_blank" rel="noopener" style="font-size:13px; color:var(--accent-2); font-weight:600;">📄 Lihat Lampiran Tugas</a>` : ""}
+          </div>
+          <button class="button-secondary" data-action="submit" data-id="${t.id}">${sub ? "Ubah Jawaban" : "Kumpulkan"}</button>
+        </div>`;
+      tugasList.appendChild(card);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadTugas().catch((err) => showPageMessage(err.message || "Gagal memuat tugas.")));
+
+  // ---------- modal kumpulkan ----------
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const tugasDetail = document.getElementById("tugasDetail");
+  const itemForm = document.getElementById("itemForm");
+  const saveButton = document.getElementById("saveButton");
+  let activeTugasId = null;
+
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  document.getElementById("tugasList").addEventListener("click", async (e) => {
+    const btn = e.target.closest('button[data-action="submit"]');
+    if (!btn) return;
+    activeTugasId = btn.dataset.id;
+    const t = tugasRows.find((r) => r.id === activeTugasId);
+    itemForm.reset();
+    showModalMessage("");
+    tugasDetail.textContent = `Deadline: ${fmtDeadline(t?.deadline)}`;
+
+    try {
+      const subSnap = await getDoc(doc(db, "tugasSubmission", `${activeTugasId}_${uid}`));
+      if (subSnap.exists()) {
+        document.getElementById("jawaban").value = subSnap.data().jawaban || "";
+        document.getElementById("fileUrl").value = subSnap.data().fileUrl || "";
+        if (subSnap.data().score != null) {
+          showModalMessage("Tugas ini sudah dinilai. Mengubah jawaban akan mengganti jawaban lama (nilai tetap tersimpan sampai dosen menilai ulang).", "warn");
+        }
+      }
+    } catch (err) { console.error(err); }
+
+    modalBackdrop.classList.add("open");
+  });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const jawaban = document.getElementById("jawaban").value.trim();
+    const fileUrl = document.getElementById("fileUrl").value.trim();
+
+    if (!jawaban && !fileUrl) {
+      showModalMessage("Isi jawaban atau lampirkan link file.");
+      return;
+    }
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Mengirim...`;
+
+    try {
+      await withTimeout(setDoc(doc(db, "tugasSubmission", `${activeTugasId}_${uid}`), {
+        tugasId: activeTugasId,
+        mahasiswaId: uid,
+        jawaban, fileUrl,
+        submittedAt: serverTimestamp(),
+      }, { merge: true }), 15000, "Kumpulkan tugas");
+
+      showPageMessage("Tugas berhasil dikumpulkan.", "success");
+      closeModal();
+      loadTugas();
+    } catch (err) {
+      console.error(err);
+      showModalMessage(err.message || "Gagal mengumpulkan tugas.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Kumpulkan";
+    }
+  });
+
+  loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
+</script>
+
+</body>
+</html>

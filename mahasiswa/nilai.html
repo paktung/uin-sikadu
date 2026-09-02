@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nilai / KHS - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css?v=7">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Mahasiswa</div></div>
+    </div>
+    <div class="sidebar-avatar-block">
+      <div class="avatar" id="sidebarAvatar">M</div>
+      <div class="name" id="sidebarUser">Memuat...</div>
+      <div class="role">Mahasiswa</div>
+      <div class="underline"></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Nilai / KHS</h1><p>Rekap nilai Anda pada tahun akademik aktif.</p></div>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="stat-grid-elegant">
+      <div class="stat-card-elegant"><div class="stat-icon c1">📚</div><div class="stat-text"><div class="label">Total SKS</div><div class="value" id="statSks">-</div></div></div>
+      <div class="stat-card-elegant"><div class="stat-icon c3">🎯</div><div class="stat-text"><div class="label">IP Semester</div><div class="value" id="statIp">-</div></div></div>
+    </div>
+
+    <div class="card">
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Mata Kuliah</th><th>SKS</th><th>Tugas</th><th>UTS</th><th>UAS</th><th>Kehadiran</th><th>Nilai Akhir</th><th>Huruf</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;">Belum ada nilai yang diinput dosen untuk periode ini.</div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
+  import {
+    collection, doc, getDoc, getDocs, query, where,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  function initials(name) {
+    if (!name) return "M";
+    const p = name.trim().split(/\s+/);
+    return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "M";
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  // Konversi huruf ke bobot indeks standar, untuk hitung IP.
+  const GRADE_POINT = { A: 4, B: 3, C: 2, D: 1, E: 0 };
+
+  renderMahasiswaNav("nilai.html");
+  const { uid, profile } = await guardPage("mahasiswa");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Mahasiswa";
+  document.getElementById("sidebarAvatar").textContent = initials(profile.nama || profile.username);
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  const pageMessage = document.getElementById("pageMessage");
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+
+  async function loadNilai() {
+    const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
+    const tableBody = document.getElementById("tableBody");
+    const emptyState = document.getElementById("emptyState");
+    if (tahunSnap.empty) { emptyState.style.display = "block"; emptyState.textContent = "Belum ada periode aktif."; return; }
+    const tahunId = tahunSnap.docs[0].id;
+
+    const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("mahasiswaId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat KRS");
+    if (krsSnap.empty) { emptyState.style.display = "block"; emptyState.textContent = "Anda belum terdaftar di kelas manapun periode ini."; return; }
+
+    const kelasIds = krsSnap.docs.map((d) => d.data().kelasKuliahId);
+    const kelasDocs = await Promise.all(kelasIds.map((id) => getDoc(doc(db, "kelasKuliah", id))));
+    const validKelas = kelasDocs.filter((d) => d.exists());
+    const mkIds = [...new Set(validKelas.map((d) => d.data().mataKuliahId))];
+    const mkDocs = await Promise.all(mkIds.map((id) => getDoc(doc(db, "mataKuliah", id))));
+    const mkById = {}; mkDocs.forEach((d) => { if (d.exists()) mkById[d.id] = d.data(); });
+
+    const nilaiDocs = await Promise.all(validKelas.map((d) => getDoc(doc(db, "nilai", `${d.id}_${uid}`))));
+
+    let totalSks = 0;
+    let totalBobot = 0;
+    let anyNilai = false;
+
+    const rows = validKelas.map((d, i) => {
+      const k = d.data();
+      const mk = mkById[k.mataKuliahId] || {};
+      const n = nilaiDocs[i].exists() ? nilaiDocs[i].data() : null;
+      const sks = Number(mk.sks) || 0;
+      totalSks += sks;
+      if (n && n.finalScore != null) {
+        anyNilai = true;
+        totalBobot += sks * (GRADE_POINT[n.gradeLetter] ?? 0);
+      }
+      return { mk, sks, n };
+    });
+
+    tableBody.innerHTML = "";
+    emptyState.style.display = "none";
+    rows.forEach(({ mk, sks, n }) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(mk.nama || "-")}</td>
+        <td>${sks || "-"}</td>
+        <td>${n?.tugasScore ?? "-"}</td>
+        <td>${n?.utsScore ?? "-"}</td>
+        <td>${n?.uasScore ?? "-"}</td>
+        <td>${n?.attendanceScore ?? "-"}</td>
+        <td style="font-weight:700;">${n?.finalScore ?? "-"}</td>
+        <td>${n?.gradeLetter ? `<span class="badge active">${n.gradeLetter}</span>` : '<span class="badge inactive">Belum dinilai</span>'}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+
+    document.getElementById("statSks").textContent = totalSks;
+    document.getElementById("statIp").textContent = anyNilai && totalSks > 0 ? (totalBobot / totalSks).toFixed(2) : "-";
+  }
+
+  loadNilai().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat nilai."); });
+</script>
+
+</body>
+</html>

@@ -56,6 +56,7 @@
           <div class="meta-item"><span class="k">Email</span><span id="metaEmail">-</span></div>
           <div class="meta-item"><span class="k">No. WhatsApp</span><span id="metaWa">-</span></div>
         </div>
+        <div class="social-links" id="socialLinks"></div>
       </div>
       <button id="editProfileButton" class="button-secondary">Edit Profil</button>
     </div>
@@ -68,18 +69,15 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:20px;">
+    <div class="card">
       <h2 style="font-size:16px; margin-bottom:14px;">Langkah cepat</h2>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
         <a href="krs.html" class="button-secondary" style="text-decoration:none;">🏫 Kelas Saya</a>
         <a href="materi.html" class="button-secondary" style="text-decoration:none;">📚 Lihat Materi</a>
+        <a href="tugas.html" class="button-secondary" style="text-decoration:none;">📝 Tugas</a>
         <a href="presensi.html" class="button-secondary" style="text-decoration:none;">✅ Rekap Presensi</a>
+        <a href="nilai.html" class="button-secondary" style="text-decoration:none;">🎯 Nilai / KHS</a>
       </div>
-    </div>
-
-    <div class="card">
-      <h2 style="font-size:16px; margin-bottom:8px;">Segera Hadir</h2>
-      <p class="hint">Tugas (pengumpulan & nilai) dan Nilai/KHS sedang dalam pengembangan tahap berikutnya.</p>
     </div>
 
   </main>
@@ -109,6 +107,15 @@
 
         <div class="form-group span-2"><label for="email">Email</label><input type="email" id="email"></div>
         <div class="form-group span-2"><label for="alamat">Alamat</label><textarea id="alamat" rows="2"></textarea></div>
+
+        <div class="form-group span-2">
+          <label for="foto">Link Foto Profil</label>
+          <input type="url" id="foto" placeholder="https://i.imgur.com/... atau https://res.cloudinary.com/...">
+          <p class="hint">Upload dulu ke Imgur/Cloudinary, lalu tempel link gambarnya di sini.</p>
+        </div>
+        <div class="form-group"><label for="instagram">Instagram</label><input type="text" id="instagram" placeholder="username, tanpa @"></div>
+        <div class="form-group"><label for="tiktok">TikTok</label><input type="text" id="tiktok" placeholder="username, tanpa @"></div>
+        <div class="form-group span-2"><label for="linkedin">LinkedIn</label><input type="text" id="linkedin" placeholder="URL profil LinkedIn"></div>
       </div>
       <p class="hint">NIM dan username login tidak bisa diubah sendiri. Hubungi admin kalau ada kesalahan.</p>
       <div class="modal-actions">
@@ -160,11 +167,30 @@
   function renderProfile() {
     const nama = mhsData.nama || profile.nama || profile.username;
     document.getElementById("profileNama").textContent = nama;
-    document.getElementById("profileAvatar").textContent = initials(nama);
+
+    const avatarEl = document.getElementById("profileAvatar");
+    if (mhsData.foto) {
+      avatarEl.innerHTML = `<img src="${mhsData.foto}" alt="Foto ${nama}" onerror="this.parentElement.textContent='${initials(nama)}';">`;
+    } else {
+      avatarEl.textContent = initials(nama);
+    }
+
     document.getElementById("profileNim").textContent = mhsData.nim ? `NIM ${mhsData.nim}` : "NIM belum diisi";
     document.getElementById("metaJk").textContent = mhsData.jenisKelamin || "-";
     document.getElementById("metaEmail").textContent = mhsData.email || "-";
     document.getElementById("metaWa").textContent = mhsData.noWa || "-";
+
+    const social = document.getElementById("socialLinks");
+    const links = [];
+    if (mhsData.instagram) links.push(`<a href="https://instagram.com/${encodeURIComponent(mhsData.instagram)}" target="_blank" rel="noopener">📷 Instagram</a>`);
+    if (mhsData.tiktok) links.push(`<a href="https://tiktok.com/@${encodeURIComponent(mhsData.tiktok)}" target="_blank" rel="noopener">🎵 TikTok</a>`);
+    if (mhsData.linkedin) links.push(`<a href="${mhsData.linkedin}" target="_blank" rel="noopener">💼 LinkedIn</a>`);
+    social.innerHTML = links.join("");
+
+    const sidebarAvatarEl = document.getElementById("sidebarAvatar");
+    if (mhsData.foto) {
+      sidebarAvatarEl.innerHTML = `<img src="${mhsData.foto}" alt="Foto ${nama}" onerror="this.parentElement.textContent='${initials(nama)}';">`;
+    }
   }
 
   async function loadTahunAktif() {
@@ -197,6 +223,10 @@
     document.getElementById("tanggalLahir").value = mhsData.tanggalLahir || "";
     document.getElementById("email").value = mhsData.email || "";
     document.getElementById("alamat").value = mhsData.alamat || "";
+    document.getElementById("foto").value = mhsData.foto || "";
+    document.getElementById("instagram").value = mhsData.instagram || "";
+    document.getElementById("tiktok").value = mhsData.tiktok || "";
+    document.getElementById("linkedin").value = mhsData.linkedin || "";
     modalBackdrop.classList.add("open");
   }
   function closeModal() { modalBackdrop.classList.remove("open"); }
@@ -218,6 +248,10 @@
     const tanggalLahir = document.getElementById("tanggalLahir").value;
     const email = document.getElementById("email").value.trim();
     const alamat = document.getElementById("alamat").value.trim();
+    const foto = document.getElementById("foto").value.trim();
+    const instagram = document.getElementById("instagram").value.trim().replace(/^@/, "");
+    const tiktok = document.getElementById("tiktok").value.trim().replace(/^@/, "");
+    const linkedin = document.getElementById("linkedin").value.trim();
 
     saveButton.disabled = true;
     saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
@@ -225,10 +259,11 @@
     try {
       await withTimeout(updateDoc(doc(db, "mahasiswa", uid), {
         nama, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat,
+        foto, instagram, tiktok, linkedin,
         updatedAt: serverTimestamp(),
       }), 15000, "Simpan profil");
 
-      mhsData = { ...mhsData, nama, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat };
+      mhsData = { ...mhsData, nama, jenisKelamin, noWa, tempatLahir, tanggalLahir, email, alamat, foto, instagram, tiktok, linkedin };
       renderProfile();
       closeModal();
       showPageMessage("Profil berhasil diperbarui.", "success");
