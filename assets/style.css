@@ -546,6 +546,19 @@ table.data-table {
   font-size: 14px;
 }
 
+/* Panel yang scroll ke bawah kalau isinya panjang, supaya halaman tidak
+   memanjang tak terbatas - dipakai untuk daftar/tabel yang bisa berisi
+   banyak baris (peserta kelas, materi, tugas, pertemuan, dst). */
+.scroll-panel {
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: 10px;
+}
+@media (max-width: 760px) {
+  .scroll-panel { max-height: 50vh; }
+}
+
 /* ============ MODAL ============ */
 
 .modal-backdrop {
