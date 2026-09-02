@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Admin - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=6">
+<link rel="stylesheet" href="../assets/style.css?v=7">
 </head>
 <body>
 
@@ -45,15 +45,12 @@
 
     <div id="pageMessage" class="message"></div>
 
-    <div class="dash-top-grid">
-      <div class="info-card-highlight" style="margin-bottom:0; height:100%;">
-        <div class="stat-icon c1">📅</div>
-        <div>
-          <div class="title">Tahun Akademik Aktif</div>
-          <div class="value" id="tahunAktifLabel">Memuat...</div>
-        </div>
+    <div class="info-card-highlight">
+      <div class="stat-icon c1">📅</div>
+      <div>
+        <div class="title">Tahun Akademik Aktif</div>
+        <div class="value" id="tahunAktifLabel">Memuat...</div>
       </div>
-      <div id="calendarWidget"></div>
     </div>
 
     <div class="stat-grid-elegant">
@@ -101,11 +98,10 @@
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=6";
-  import { renderAdminNav } from "../assets/admin-nav.js?v=6";
-  import { db } from "../assets/firebase-config.js?v=6";
-  import { withTimeout } from "../assets/with-timeout.js?v=6";
-  import { renderCalendarWidget } from "../assets/calendar-widget.js?v=6";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=7";
+  import { renderAdminNav } from "../assets/admin-nav.js?v=7";
+  import { db } from "../assets/firebase-config.js?v=7";
+  import { withTimeout } from "../assets/with-timeout.js?v=7";
   import {
     collection, query, where, getCountFromServer, getDocs,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -117,7 +113,6 @@
   }
 
   renderAdminNav("dashboard.html");
-  renderCalendarWidget("calendarWidget");
   const { profile } = await guardPage("admin");
 
   console.log("=== SIKADU ADMIN DASHBOARD ===");
