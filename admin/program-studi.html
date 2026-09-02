@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Program Studi - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Admin</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Program Studi</h1><p>Kelola program studi di bawah tiap fakultas.</p></div>
+      <button id="addButton" class="button-primary">+ Tambah Program Studi</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <input type="search" id="searchInput" placeholder="Cari nama atau kode...">
+        <span class="hint" id="rowCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Nama Program Studi</th><th>Kode</th><th>Jenjang</th><th>Fakultas</th><th></th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        Belum ada data program studi. <span id="needFakultasHint"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Tambah Program Studi</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="form-grid-2">
+        <div class="form-group span-2"><label for="nama">Nama Program Studi</label><input type="text" id="nama" required></div>
+        <div class="form-group"><label for="kode">Kode</label><input type="text" id="kode" placeholder="mis. TI" required></div>
+        <div class="form-group">
+          <label for="jenjang">Jenjang</label>
+          <select id="jenjang" required>
+            <option value="">Pilih...</option>
+            <option value="D3">D3</option>
+            <option value="S1">S1</option>
+            <option value="S2">S2</option>
+            <option value="S3">S3</option>
+          </select>
+        </div>
+        <div class="form-group span-2">
+          <label for="fakultasId">Fakultas</label>
+          <select id="fakultasId" required></select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js";
+  import { renderAdminNav } from "../assets/admin-nav.js";
+  import { db } from "../assets/firebase-config.js";
+  import {
+    collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  renderAdminNav("program-studi.html");
+  const { profile } = await guardPage("admin");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  let allRows = [];
+  let fakultasList = [];
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const needFakultasHint = document.getElementById("needFakultasHint");
+  const rowCount = document.getElementById("rowCount");
+  const searchInput = document.getElementById("searchInput");
+  const pageMessage = document.getElementById("pageMessage");
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const itemForm = document.getElementById("itemForm");
+  const itemIdInput = document.getElementById("itemId");
+  const fakultasSelect = document.getElementById("fakultasId");
+  const saveButton = document.getElementById("saveButton");
+  const addButton = document.getElementById("addButton");
+
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fakultasNama(id) {
+    const f = fakultasList.find((f) => f.id === id);
+    return f ? f.nama : "-";
+  }
+
+  async function loadFakultas() {
+    const snap = await getDocs(query(collection(db, "fakultas"), orderBy("nama")));
+    fakultasList = [];
+    snap.forEach((d) => fakultasList.push({ id: d.id, ...d.data() }));
+
+    fakultasSelect.innerHTML = fakultasList.length
+      ? fakultasList.map((f) => `<option value="${f.id}">${escapeHtml(f.nama)}</option>`).join("")
+      : `<option value="">Belum ada fakultas</option>`;
+
+    const noFakultas = fakultasList.length === 0;
+    addButton.disabled = noFakultas;
+    needFakultasHint.textContent = noFakultas ? "Tambahkan fakultas dulu di menu Fakultas." : "";
+  }
+
+  async function loadData() {
+    tableBody.innerHTML = `<tr><td colspan="5" class="empty-state">Memuat data...</td></tr>`;
+    await loadFakultas();
+    const snap = await getDocs(query(collection(db, "programStudi"), orderBy("nama")));
+    allRows = [];
+    snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = searchInput.value.trim().toLowerCase();
+    const rows = allRows.filter((r) => !search || (r.nama || "").toLowerCase().includes(search) || (r.kode || "").toLowerCase().includes(search));
+    rowCount.textContent = `${rows.length} program studi`;
+    emptyState.style.display = rows.length === 0 ? "block" : "none";
+    tableBody.innerHTML = "";
+    rows.forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(r.nama || "-")}</td>
+        <td>${escapeHtml(r.kode || "-")}</td>
+        <td>${escapeHtml(r.jenjang || "-")}</td>
+        <td>${escapeHtml(fakultasNama(r.fakultasId))}</td>
+        <td>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-id="${r.id}">Edit</button>
+            <button class="button-danger" data-action="delete" data-id="${r.id}">Hapus</button>
+          </div>
+        </td>`;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  tableBody.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const row = allRows.find((r) => r.id === btn.dataset.id);
+    if (!row) return;
+
+    if (btn.dataset.action === "edit") openModal(row);
+
+    if (btn.dataset.action === "delete") {
+      if (!confirm(`Hapus program studi "${row.nama}"?`)) return;
+      try {
+        await deleteDoc(doc(db, "programStudi", row.id));
+        showPageMessage(`Program studi "${row.nama}" berhasil dihapus.`, "success");
+        loadData();
+      } catch (err) {
+        console.error(err);
+        showPageMessage("Gagal menghapus data.");
+      }
+    }
+  });
+
+  function openModal(row = null) {
+    itemForm.reset();
+    showModalMessage("");
+    if (row) {
+      modalTitle.textContent = "Edit Program Studi";
+      itemIdInput.value = row.id;
+      document.getElementById("nama").value = row.nama || "";
+      document.getElementById("kode").value = row.kode || "";
+      document.getElementById("jenjang").value = row.jenjang || "";
+      fakultasSelect.value = row.fakultasId || "";
+    } else {
+      modalTitle.textContent = "Tambah Program Studi";
+      itemIdInput.value = "";
+    }
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+
+  addButton.addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const editingId = itemIdInput.value;
+    const nama = document.getElementById("nama").value.trim();
+    const kode = document.getElementById("kode").value.trim().toUpperCase();
+    const jenjang = document.getElementById("jenjang").value;
+    const fakultasId = fakultasSelect.value;
+
+    if (!fakultasId) { showModalMessage("Pilih fakultas terlebih dahulu."); return; }
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "programStudi", editingId), { nama, kode, jenjang, fakultasId, updatedAt: serverTimestamp() });
+        showPageMessage(`Program studi "${nama}" berhasil diperbarui.`, "success");
+      } else {
+        await addDoc(collection(db, "programStudi"), { nama, kode, jenjang, fakultasId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        showPageMessage(`Program studi "${nama}" berhasil ditambahkan.`, "success");
+      }
+      closeModal();
+      loadData();
+    } catch (err) {
+      console.error(err);
+      showModalMessage("Gagal menyimpan data. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadData().catch((err) => { console.error(err); showPageMessage("Gagal memuat data program studi."); });
+</script>
+
+</body>
+</html>

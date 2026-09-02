@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelas Kuliah - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Admin</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Kelas Kuliah</h1><p>Buka kelas untuk mata kuliah pada tahun akademik tertentu, tentukan dosen pengampu.</p></div>
+      <button id="addButton" class="button-primary">+ Buka Kelas</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <input type="search" id="searchInput" placeholder="Cari kode kelas atau mata kuliah...">
+        <span class="hint" id="rowCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Kode Kelas</th><th>Mata Kuliah</th><th>Dosen</th><th>Tahun Akademik</th><th>Kapasitas</th><th></th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        Belum ada kelas dibuka. <span id="prereqHint"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Buka Kelas Kuliah</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="form-grid-2">
+        <div class="form-group span-2">
+          <label for="mataKuliahId">Mata Kuliah</label>
+          <select id="mataKuliahId" required></select>
+        </div>
+        <div class="form-group span-2">
+          <label for="dosenId">Dosen Pengampu</label>
+          <select id="dosenId" required></select>
+        </div>
+        <div class="form-group span-2">
+          <label for="tahunAkademikId">Tahun Akademik</label>
+          <select id="tahunAkademikId" required></select>
+        </div>
+        <div class="form-group"><label for="kodeKelas">Kode Kelas</label><input type="text" id="kodeKelas" placeholder="mis. A" required></div>
+        <div class="form-group"><label for="kapasitas">Kapasitas</label><input type="number" id="kapasitas" min="1" value="40" required></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js";
+  import { renderAdminNav } from "../assets/admin-nav.js";
+  import { db } from "../assets/firebase-config.js";
+  import {
+    collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  renderAdminNav("kelas-kuliah.html");
+  const { profile } = await guardPage("admin");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  let allRows = [];
+  let mataKuliahList = [];
+  let dosenList = [];
+  let tahunList = [];
+
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const prereqHint = document.getElementById("prereqHint");
+  const rowCount = document.getElementById("rowCount");
+  const searchInput = document.getElementById("searchInput");
+  const pageMessage = document.getElementById("pageMessage");
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const itemForm = document.getElementById("itemForm");
+  const itemIdInput = document.getElementById("itemId");
+  const mkSelect = document.getElementById("mataKuliahId");
+  const dosenSelect = document.getElementById("dosenId");
+  const tahunSelect = document.getElementById("tahunAkademikId");
+  const saveButton = document.getElementById("saveButton");
+  const addButton = document.getElementById("addButton");
+
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  const mkNama = (id) => { const m = mataKuliahList.find((m) => m.id === id); return m ? `${m.kode} - ${m.nama}` : "-"; };
+  const dosenNama = (id) => { const d = dosenList.find((d) => d.id === id); return d ? d.nama : "-"; };
+  const tahunLabel = (id) => { const t = tahunList.find((t) => t.id === id); return t ? `${t.tahun} ${t.semester}` : "-"; };
+
+  async function loadReferences() {
+    const [mkSnap, dosenSnap, tahunSnap] = await Promise.all([
+      getDocs(query(collection(db, "mataKuliah"), orderBy("nama"))),
+      getDocs(query(collection(db, "dosen"), orderBy("nama"))),
+      getDocs(query(collection(db, "tahunAkademik"), orderBy("tahun", "desc"))),
+    ]);
+    mataKuliahList = []; mkSnap.forEach((d) => mataKuliahList.push({ id: d.id, ...d.data() }));
+    dosenList = []; dosenSnap.forEach((d) => dosenList.push({ id: d.id, ...d.data() }));
+    tahunList = []; tahunSnap.forEach((d) => tahunList.push({ id: d.id, ...d.data() }));
+
+    mkSelect.innerHTML = mataKuliahList.length
+      ? mataKuliahList.map((m) => `<option value="${m.id}">${escapeHtml(m.kode)} - ${escapeHtml(m.nama)}</option>`).join("")
+      : `<option value="">Belum ada mata kuliah</option>`;
+    dosenSelect.innerHTML = dosenList.length
+      ? dosenList.map((d) => `<option value="${d.id}">${escapeHtml(d.nama)}</option>`).join("")
+      : `<option value="">Belum ada dosen</option>`;
+    tahunSelect.innerHTML = tahunList.length
+      ? tahunList.map((t) => `<option value="${t.id}">${escapeHtml(t.tahun)} - ${escapeHtml(t.semester)}${t.isActive ? " (Aktif)" : ""}</option>`).join("")
+      : `<option value="">Belum ada tahun akademik</option>`;
+
+    const missing = mataKuliahList.length === 0 || dosenList.length === 0 || tahunList.length === 0;
+    addButton.disabled = missing;
+    prereqHint.textContent = missing
+      ? "Pastikan sudah ada Mata Kuliah, Dosen, dan Tahun Akademik sebelum membuka kelas."
+      : "";
+  }
+
+  async function loadData() {
+    tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
+    await loadReferences();
+    const snap = await getDocs(query(collection(db, "kelasKuliah"), orderBy("kodeKelas")));
+    allRows = [];
+    snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = searchInput.value.trim().toLowerCase();
+    const rows = allRows.filter((r) =>
+      !search ||
+      (r.kodeKelas || "").toLowerCase().includes(search) ||
+      mkNama(r.mataKuliahId).toLowerCase().includes(search)
+    );
+    rowCount.textContent = `${rows.length} kelas`;
+    emptyState.style.display = rows.length === 0 ? "block" : "none";
+    tableBody.innerHTML = "";
+    rows.forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(r.kodeKelas || "-")}</td>
+        <td>${escapeHtml(mkNama(r.mataKuliahId))}</td>
+        <td>${escapeHtml(dosenNama(r.dosenId))}</td>
+        <td>${escapeHtml(tahunLabel(r.tahunAkademikId))}</td>
+        <td>${escapeHtml(r.kapasitas ?? "-")}</td>
+        <td>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-id="${r.id}">Edit</button>
+            <button class="button-danger" data-action="delete" data-id="${r.id}">Hapus</button>
+          </div>
+        </td>`;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  tableBody.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const row = allRows.find((r) => r.id === btn.dataset.id);
+    if (!row) return;
+
+    if (btn.dataset.action === "edit") openModal(row);
+
+    if (btn.dataset.action === "delete") {
+      if (!confirm(`Hapus kelas "${row.kodeKelas}"?`)) return;
+      try {
+        await deleteDoc(doc(db, "kelasKuliah", row.id));
+        showPageMessage(`Kelas berhasil dihapus.`, "success");
+        loadData();
+      } catch (err) {
+        console.error(err);
+        showPageMessage("Gagal menghapus data.");
+      }
+    }
+  });
+
+  function openModal(row = null) {
+    itemForm.reset();
+    showModalMessage("");
+    if (row) {
+      modalTitle.textContent = "Edit Kelas Kuliah";
+      itemIdInput.value = row.id;
+      mkSelect.value = row.mataKuliahId || "";
+      dosenSelect.value = row.dosenId || "";
+      tahunSelect.value = row.tahunAkademikId || "";
+      document.getElementById("kodeKelas").value = row.kodeKelas || "";
+      document.getElementById("kapasitas").value = row.kapasitas || 40;
+    } else {
+      modalTitle.textContent = "Buka Kelas Kuliah";
+      itemIdInput.value = "";
+    }
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+
+  addButton.addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const editingId = itemIdInput.value;
+    const mataKuliahId = mkSelect.value;
+    const dosenId = dosenSelect.value;
+    const tahunAkademikId = tahunSelect.value;
+    const kodeKelas = document.getElementById("kodeKelas").value.trim().toUpperCase();
+    const kapasitas = Number(document.getElementById("kapasitas").value);
+
+    if (!mataKuliahId || !dosenId || !tahunAkademikId) {
+      showModalMessage("Mata kuliah, dosen, dan tahun akademik wajib dipilih.");
+      return;
+    }
+
+    // Cegah kelas duplikat: mata kuliah + kode kelas + tahun akademik yang sama.
+    const duplicate = allRows.some((r) =>
+      r.id !== editingId &&
+      r.mataKuliahId === mataKuliahId &&
+      r.tahunAkademikId === tahunAkademikId &&
+      (r.kodeKelas || "").toUpperCase() === kodeKelas
+    );
+    if (duplicate) {
+      showModalMessage("Kelas dengan kode ini untuk mata kuliah & tahun akademik yang sama sudah ada.");
+      return;
+    }
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      const payload = { mataKuliahId, dosenId, tahunAkademikId, kodeKelas, kapasitas, updatedAt: serverTimestamp() };
+      if (editingId) {
+        await updateDoc(doc(db, "kelasKuliah", editingId), payload);
+        showPageMessage(`Kelas berhasil diperbarui.`, "success");
+      } else {
+        await addDoc(collection(db, "kelasKuliah"), { ...payload, createdAt: serverTimestamp() });
+        showPageMessage(`Kelas berhasil dibuka.`, "success");
+      }
+      closeModal();
+      loadData();
+    } catch (err) {
+      console.error(err);
+      showModalMessage("Gagal menyimpan data. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadData().catch((err) => { console.error(err); showPageMessage("Gagal memuat data kelas kuliah."); });
+</script>
+
+</body>
+</html>

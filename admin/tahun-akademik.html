@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tahun Akademik - SIKADU</title>
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg" alt="Logo"></div>
+      <div><div class="name">SIKADU</div><div class="role">Panel Admin</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebarUser">Memuat...</div>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div><h1>Tahun Akademik</h1><p>Kelola periode tahun ajaran & semester. Hanya satu yang boleh aktif.</p></div>
+      <button id="addButton" class="button-primary">+ Tambah Tahun Akademik</button>
+    </div>
+
+    <div id="pageMessage" class="message"></div>
+
+    <div class="card">
+      <div class="table-toolbar">
+        <input type="search" id="searchInput" placeholder="Cari tahun...">
+        <span class="hint" id="rowCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Tahun</th><th>Semester</th><th>Mulai</th><th>Selesai</th><th>Status</th><th></th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;">Belum ada data tahun akademik.</div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Tambah Tahun Akademik</h2><button class="modal-close" id="modalClose">&times;</button></div>
+    <div id="modalMessage" class="message"></div>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="form-grid-2">
+        <div class="form-group span-2"><label for="tahun">Tahun Ajaran</label><input type="text" id="tahun" placeholder="mis. 2026/2027" required></div>
+        <div class="form-group">
+          <label for="semester">Semester</label>
+          <select id="semester" required>
+            <option value="Ganjil">Ganjil</option>
+            <option value="Genap">Genap</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="tanggalMulai">Tanggal Mulai</label><input type="date" id="tanggalMulai" required></div>
+        <div class="form-group"><label for="tanggalSelesai">Tanggal Selesai</label><input type="date" id="tanggalSelesai" required></div>
+        <div class="form-group span-2" style="display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="isActive" style="width:auto;">
+          <label for="isActive" style="margin:0;">Jadikan tahun akademik aktif</label>
+        </div>
+        <p class="hint span-2" style="margin-top:-8px;">Mengaktifkan periode ini akan otomatis menonaktifkan periode lain yang sedang aktif.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="button-secondary" id="cancelButton">Batal</button>
+        <button type="submit" class="button-primary" id="saveButton">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage, logout } from "../assets/auth-guard.js";
+  import { renderAdminNav } from "../assets/admin-nav.js";
+  import { db } from "../assets/firebase-config.js";
+  import {
+    collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, serverTimestamp, writeBatch,
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  renderAdminNav("tahun-akademik.html");
+  const { profile } = await guardPage("admin");
+  document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  let allRows = [];
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const rowCount = document.getElementById("rowCount");
+  const searchInput = document.getElementById("searchInput");
+  const pageMessage = document.getElementById("pageMessage");
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const itemForm = document.getElementById("itemForm");
+  const itemIdInput = document.getElementById("itemId");
+  const saveButton = document.getElementById("saveButton");
+
+  function showPageMessage(text, type = "error") {
+    pageMessage.textContent = text;
+    pageMessage.className = `message ${type}`;
+    if (text) setTimeout(() => { pageMessage.className = "message"; }, 4000);
+  }
+  function showModalMessage(text, type = "error") {
+    modalMessage.textContent = text;
+    modalMessage.className = `message ${type}`;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function loadData() {
+    tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Memuat data...</td></tr>`;
+    const snap = await getDocs(query(collection(db, "tahunAkademik"), orderBy("tahun", "desc")));
+    allRows = [];
+    snap.forEach((d) => allRows.push({ id: d.id, ...d.data() }));
+    renderTable();
+  }
+
+  function renderTable() {
+    const search = searchInput.value.trim().toLowerCase();
+    const rows = allRows.filter((r) => !search || (r.tahun || "").toLowerCase().includes(search));
+    rowCount.textContent = `${rows.length} periode`;
+    emptyState.style.display = rows.length === 0 ? "block" : "none";
+    tableBody.innerHTML = "";
+    rows.forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(r.tahun || "-")}</td>
+        <td>${escapeHtml(r.semester || "-")}</td>
+        <td>${escapeHtml(r.tanggalMulai || "-")}</td>
+        <td>${escapeHtml(r.tanggalSelesai || "-")}</td>
+        <td><span class="badge ${r.isActive ? "active" : "inactive"}">${r.isActive ? "Aktif" : "Nonaktif"}</span></td>
+        <td>
+          <div class="row-actions">
+            <button class="button-ghost" data-action="edit" data-id="${r.id}">Edit</button>
+            <button class="button-danger" data-action="delete" data-id="${r.id}">Hapus</button>
+          </div>
+        </td>`;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  searchInput.addEventListener("input", renderTable);
+
+  tableBody.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const row = allRows.find((r) => r.id === btn.dataset.id);
+    if (!row) return;
+
+    if (btn.dataset.action === "edit") openModal(row);
+
+    if (btn.dataset.action === "delete") {
+      if (!confirm(`Hapus tahun akademik "${row.tahun} - ${row.semester}"?`)) return;
+      try {
+        await deleteDoc(doc(db, "tahunAkademik", row.id));
+        showPageMessage(`Tahun akademik berhasil dihapus.`, "success");
+        loadData();
+      } catch (err) {
+        console.error(err);
+        showPageMessage("Gagal menghapus data.");
+      }
+    }
+  });
+
+  function openModal(row = null) {
+    itemForm.reset();
+    showModalMessage("");
+    if (row) {
+      modalTitle.textContent = "Edit Tahun Akademik";
+      itemIdInput.value = row.id;
+      document.getElementById("tahun").value = row.tahun || "";
+      document.getElementById("semester").value = row.semester || "Ganjil";
+      document.getElementById("tanggalMulai").value = row.tanggalMulai || "";
+      document.getElementById("tanggalSelesai").value = row.tanggalSelesai || "";
+      document.getElementById("isActive").checked = !!row.isActive;
+    } else {
+      modalTitle.textContent = "Tambah Tahun Akademik";
+      itemIdInput.value = "";
+    }
+    modalBackdrop.classList.add("open");
+  }
+  function closeModal() { modalBackdrop.classList.remove("open"); }
+
+  document.getElementById("addButton").addEventListener("click", () => openModal());
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("cancelButton").addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  itemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showModalMessage("");
+    const editingId = itemIdInput.value;
+    const tahun = document.getElementById("tahun").value.trim();
+    const semester = document.getElementById("semester").value;
+    const tanggalMulai = document.getElementById("tanggalMulai").value;
+    const tanggalSelesai = document.getElementById("tanggalSelesai").value;
+    const isActive = document.getElementById("isActive").checked;
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = `<span class="loading" style="border-top-color:var(--ink); border-color:rgba(0,0,0,.2);"></span> Menyimpan...`;
+
+    try {
+      // Kalau periode ini diaktifkan, matikan status aktif di semua periode lain
+      // dulu lewat batch write, supaya cuma satu yang aktif setiap saat.
+      if (isActive) {
+        const batch = writeBatch(db);
+        allRows.forEach((r) => {
+          if (r.isActive && r.id !== editingId) {
+            batch.update(doc(db, "tahunAkademik", r.id), { isActive: false, updatedAt: serverTimestamp() });
+          }
+        });
+        await batch.commit();
+      }
+
+      const payload = { tahun, semester, tanggalMulai, tanggalSelesai, isActive, updatedAt: serverTimestamp() };
+      if (editingId) {
+        await updateDoc(doc(db, "tahunAkademik", editingId), payload);
+        showPageMessage(`Tahun akademik berhasil diperbarui.`, "success");
+      } else {
+        await addDoc(collection(db, "tahunAkademik"), { ...payload, createdAt: serverTimestamp() });
+        showPageMessage(`Tahun akademik berhasil ditambahkan.`, "success");
+      }
+      closeModal();
+      loadData();
+    } catch (err) {
+      console.error(err);
+      showModalMessage("Gagal menyimpan data. Coba lagi.");
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = "Simpan";
+    }
+  });
+
+  loadData().catch((err) => { console.error(err); showPageMessage("Gagal memuat data tahun akademik."); });
+</script>
+
+</body>
+</html>

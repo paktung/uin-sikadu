@@ -20,15 +20,11 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <a href="dashboard.html">Dashboard</a>
-      <a href="dosen.html">Data Dosen</a>
-      <a href="mahasiswa.html" class="active">Data Mahasiswa</a>
-    </nav>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
 
     <div class="sidebar-footer">
       <div class="sidebar-user" id="sidebarUser">Memuat...</div>
-      <button id="logoutButton" class="button-secondary" style="width:100%">Keluar</button>
+      <button id="logoutButton" class="button-secondary sidebar-logout">Keluar</button>
     </div>
   </aside>
 
@@ -154,12 +150,14 @@
 
 <script type="module">
   import { guardPage, logout } from "../assets/auth-guard.js";
+  import { renderAdminNav } from "../assets/admin-nav.js";
   import { db } from "../assets/firebase-config.js";
   import { createAuthUser } from "../assets/create-auth-user.js";
   import {
     collection, doc, setDoc, updateDoc, getDocs, query, orderBy, serverTimestamp,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+  renderAdminNav("mahasiswa.html");
   const { profile } = await guardPage("admin");
   document.getElementById("sidebarUser").textContent = profile.nama || profile.username || "Admin";
   document.getElementById("logoutButton").addEventListener("click", logout);
