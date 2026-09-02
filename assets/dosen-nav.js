@@ -1,6 +1,7 @@
 // assets/dosen-nav.js
 export const DOSEN_NAV = [
   { href: "dashboard.html", label: "Dashboard" },
+  { href: "peserta.html", label: "Peserta Kelas" },
   { href: "materi.html", label: "Materi" },
   { href: "presensi.html", label: "Presensi" },
 ];

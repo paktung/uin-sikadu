@@ -1,7 +1,7 @@
 // assets/mahasiswa-nav.js
 export const MAHASISWA_NAV = [
   { href: "dashboard.html", label: "Dashboard" },
-  { href: "krs.html", label: "KRS" },
+  { href: "krs.html", label: "Kelas Saya" },
   { href: "materi.html", label: "Materi" },
   { href: "presensi.html", label: "Presensi" },
 ];
