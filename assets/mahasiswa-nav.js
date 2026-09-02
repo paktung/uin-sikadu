@@ -3,7 +3,9 @@ export const MAHASISWA_NAV = [
   { href: "dashboard.html", label: "Dashboard" },
   { href: "krs.html", label: "Kelas Saya" },
   { href: "materi.html", label: "Materi" },
+  { href: "tugas.html", label: "Tugas" },
   { href: "presensi.html", label: "Presensi" },
+  { href: "nilai.html", label: "Nilai / KHS" },
 ];
 
 export function renderMahasiswaNav(activeHref) {
