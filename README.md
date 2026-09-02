@@ -12,6 +12,37 @@ Sistem Informasi Akademik & Pembelajaran — dibangun di atas Firebase
 /assets/          <- kode & style bersama (firebase-config, auth-guard, style.css)
 ```
 
+## Panel Admin - Master Data (BARU)
+
+Sidebar admin sekarang punya modul lengkap (semua CRUD: tambah/edit/hapus,
+pencarian, validasi relasi):
+
+- **Fakultas** (`fakultas`) — nama, kode.
+- **Program Studi** (`programStudi`) — nama, kode, jenjang, terhubung ke fakultas.
+- **Mata Kuliah** (`mataKuliah`) — kode, nama, sks, semester, jenis, terhubung ke program studi.
+- **Tahun Akademik** (`tahunAkademik`) — tahun, semester, tanggal mulai/selesai,
+  status aktif (mengaktifkan satu periode otomatis menonaktifkan periode lain
+  lewat `writeBatch`, supaya cuma satu yang aktif setiap saat).
+- **Kelas Kuliah** (`kelasKuliah`) — menghubungkan mata kuliah + dosen pengampu +
+  tahun akademik, dengan kode kelas & kapasitas. Ada pencegahan duplikat
+  (mata kuliah + kode kelas + tahun akademik yang sama tidak boleh dobel).
+- **Data Dosen** & **Data Mahasiswa** — sudah ada sejak awal.
+- **Pengumuman** (`pengumuman`) — judul, isi, status published/draft.
+
+Dashboard admin menampilkan statistik nyata dari Firestore (bukan angka
+hardcode): total fakultas, program studi, mata kuliah, kelas, dosen,
+mahasiswa, dan tahun akademik yang sedang aktif.
+
+Sidebar semua halaman admin di-render dari satu file `assets/admin-nav.js` —
+nambah halaman admin baru ke depan cukup tambah satu baris di array
+`ADMIN_NAV`, tidak perlu edit tiap file HTML satu-satu.
+
+Firestore Rules **tidak perlu diubah** untuk modul-modul baru ini — semuanya
+sudah tercakup oleh catch-all admin-only (`match /{document=**}`) di
+`firestore.rules`. Begitu dashboard dosen/mahasiswa mulai dibangun dan
+mereka perlu ikut membaca sebagian data ini (jadwal, pengumuman, dst),
+tambahkan blok rules khusus per collection — jangan longgarkan catch-all-nya.
+
 ## Yang sudah diperbaiki dari index.html & login.html lama
 
 - **Duplikasi dihapus.** Sebelumnya ada dua halaman login yang hampir identik
