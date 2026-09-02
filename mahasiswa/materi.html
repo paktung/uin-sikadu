@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Materi - SIKADU</title>
 <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/do3jvxebp/image/upload/v1788321368/logo-uin-gusdur_brzgmv.jpg">
-<link rel="stylesheet" href="../assets/style.css?v=10">
+<link rel="stylesheet" href="../assets/style.css?v=11">
 </head>
 <body>
 
@@ -29,7 +29,7 @@
 
   <main class="main">
     <div class="page-header">
-      <div><h1>Materi</h1><p>Materi dari kelas yang Anda ambil.</p></div>
+      <div><h1>Materi</h1><p>Pilih pertemuan untuk melihat materinya.</p></div>
     </div>
 
     <div id="pageMessage" class="message"></div>
@@ -41,20 +41,27 @@
       </div>
     </div>
 
-    <div class="card">
-      <div id="materiList" class="scroll-panel" style="max-height:55vh;"></div>
-      <div id="materiEmpty" class="empty-state" style="display:none;">Belum ada materi untuk kelas ini.</div>
+    <div class="card" style="margin-bottom:20px;">
+      <h2 style="font-size:15px; margin-bottom:12px;">Pertemuan</h2>
+      <div id="pertemuanList" class="scroll-panel" style="max-height:40vh;"></div>
+      <div id="pertemuanEmpty" class="empty-state" style="display:none;">Belum ada pertemuan untuk kelas ini.</div>
+    </div>
+
+    <div class="card" id="materiCard" style="display:none;">
+      <h2 style="font-size:15px; margin-bottom:12px;" id="materiCardTitle">Materi</h2>
+      <div id="materiList" class="scroll-panel" style="max-height:50vh;"></div>
+      <div id="materiEmpty" class="empty-state" style="display:none;">Belum ada materi untuk pertemuan ini.</div>
     </div>
   </main>
 </div>
 
 <script type="module">
-  import { guardPage, logout } from "../assets/auth-guard.js?v=10";
-  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=10";
-  import { db } from "../assets/firebase-config.js?v=10";
-  import { withTimeout } from "../assets/with-timeout.js?v=10";
+  import { guardPage, logout } from "../assets/auth-guard.js?v=11";
+  import { renderMahasiswaNav } from "../assets/mahasiswa-nav.js?v=11";
+  import { db } from "../assets/firebase-config.js?v=11";
+  import { withTimeout } from "../assets/with-timeout.js?v=11";
   import {
-    collection, doc, getDoc, getDocs, query, where, orderBy,
+    collection, doc, getDoc, getDocs, query, where,
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   function initials(name) {
@@ -83,6 +90,8 @@
   }
 
   const kelasSelect = document.getElementById("kelasSelect");
+  let pertemuanRows = [];
+  let activePertemuanId = null;
 
   async function loadKelasSaya() {
     const tahunSnap = await withTimeout(getDocs(query(collection(db, "tahunAkademik"), where("isActive", "==", true))), 15000, "Memuat tahun akademik");
@@ -91,9 +100,9 @@
 
     const krsSnap = await withTimeout(getDocs(query(collection(db, "krs"), where("mahasiswaId", "==", uid), where("tahunAkademikId", "==", tahunId))), 15000, "Memuat KRS");
     if (krsSnap.empty) {
-      kelasSelect.innerHTML = `<option value="">Anda belum mengambil kelas apapun</option>`;
-      document.getElementById("materiEmpty").style.display = "block";
-      document.getElementById("materiEmpty").textContent = "Isi KRS terlebih dahulu di menu KRS untuk melihat materi.";
+      kelasSelect.innerHTML = `<option value="">Anda belum terdaftar di kelas manapun</option>`;
+      document.getElementById("pertemuanEmpty").style.display = "block";
+      document.getElementById("pertemuanEmpty").textContent = "Anda belum terdaftar di kelas manapun. Hubungi dosen.";
       return;
     }
 
@@ -111,18 +120,64 @@
       return `<option value="${d.id}">${escapeHtml(mk.nama || "-")} - Kelas ${escapeHtml(k.kodeKelas || "-")}</option>`;
     }).join("");
 
-    await loadMateri();
+    await loadPertemuan();
   }
 
-  async function loadMateri() {
+  async function loadPertemuan() {
     const kelasId = kelasSelect.value;
+    const pertemuanList = document.getElementById("pertemuanList");
+    const pertemuanEmpty = document.getElementById("pertemuanEmpty");
+    document.getElementById("materiCard").style.display = "none";
+    activePertemuanId = null;
+    if (!kelasId) { pertemuanList.innerHTML = ""; return; }
+
+    pertemuanList.innerHTML = `<p class="hint">Memuat...</p>`;
+    const snap = await withTimeout(getDocs(query(collection(db, "pertemuan"), where("kelasKuliahId", "==", kelasId))), 15000, "Memuat pertemuan");
+    pertemuanRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pertemuanRows.sort((a, b) => (a.pertemuanKe || 0) - (b.pertemuanKe || 0));
+
+    pertemuanList.innerHTML = "";
+    pertemuanEmpty.style.display = pertemuanRows.length === 0 ? "block" : "none";
+    pertemuanEmpty.textContent = "Belum ada pertemuan untuk kelas ini.";
+
+    pertemuanRows.forEach((p) => {
+      const card = document.createElement("div");
+      card.className = "class-card";
+      card.style.cursor = "pointer";
+      card.dataset.pertemuanId = p.id;
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="title">Pertemuan ${escapeHtml(p.pertemuanKe)}${p.judul ? " - " + escapeHtml(p.judul) : ""}</div>
+            <div class="meta"><span>${escapeHtml(p.tanggal || "-")}</span></div>
+          </div>
+          <span class="button-secondary" style="pointer-events:none;">Lihat Materi &rarr;</span>
+        </div>`;
+      pertemuanList.appendChild(card);
+    });
+  }
+
+  kelasSelect.addEventListener("change", () => loadPertemuan().catch((err) => showPageMessage(err.message || "Gagal memuat pertemuan.")));
+
+  document.getElementById("pertemuanList").addEventListener("click", async (e) => {
+    const card = e.target.closest("[data-pertemuan-id]");
+    if (!card) return;
+    activePertemuanId = card.dataset.pertemuanId;
+    const p = pertemuanRows.find((r) => r.id === activePertemuanId);
+    document.getElementById("materiCardTitle").textContent = `Materi - Pertemuan ${p?.pertemuanKe ?? ""}${p?.judul ? " - " + p.judul : ""}`;
+    document.getElementById("materiCard").style.display = "block";
+    document.getElementById("materiCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    loadMateri().catch((err) => showPageMessage(err.message || "Gagal memuat materi."));
+  });
+
+  async function loadMateri() {
     const materiList = document.getElementById("materiList");
     const materiEmpty = document.getElementById("materiEmpty");
-    if (!kelasId) { materiList.innerHTML = ""; return; }
+    if (!activePertemuanId) return;
 
     materiList.innerHTML = `<p class="hint">Memuat...</p>`;
     const snap = await withTimeout(
-      getDocs(query(collection(db, "materi"), where("kelasKuliahId", "==", kelasId), where("published", "==", true))),
+      getDocs(query(collection(db, "materi"), where("pertemuanId", "==", activePertemuanId), where("published", "==", true))),
       15000, "Memuat materi"
     );
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -130,7 +185,7 @@
 
     materiList.innerHTML = "";
     materiEmpty.style.display = rows.length === 0 ? "block" : "none";
-    materiEmpty.textContent = "Belum ada materi untuk kelas ini.";
+    materiEmpty.textContent = "Belum ada materi untuk pertemuan ini.";
 
     rows.forEach((m) => {
       const card = document.createElement("div");
@@ -146,8 +201,6 @@
       materiList.appendChild(card);
     });
   }
-
-  kelasSelect.addEventListener("change", () => loadMateri().catch((err) => showPageMessage(err.message || "Gagal memuat materi.")));
 
   loadKelasSaya().catch((err) => { console.error(err); showPageMessage(err.message || "Gagal memuat kelas."); });
 </script>
