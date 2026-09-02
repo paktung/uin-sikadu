@@ -6,6 +6,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { getFunctions } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyCFtcNow9EGQlxhoX6jJKM97v40y1DdUjA",
@@ -20,6 +21,11 @@ export const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// Cloud Functions dipakai untuk operasi yang TIDAK BISA dilakukan client
+// SDK biasa - saat ini hanya untuk admin mereset password user lain
+// (lihat /functions/index.js). Region default us-central1, sesuaikan
+// getFunctions(app, "region") kalau function di-deploy ke region lain.
+export const functionsInstance = getFunctions(app);
 
 // Domain palsu dipakai untuk mengubah NIM/NIDN/username jadi format email,
 // karena Firebase Auth (mode email/password) mewajibkan email.
