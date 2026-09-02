@@ -279,7 +279,62 @@ input:focus, select:focus, textarea:focus {
 .page-header h1 { font-size: 24px; margin-bottom: 4px; }
 .page-header p { color: var(--muted); font-size: 14px; }
 
-/* ============ AVATAR ============ */
+/* ============ SIDEBAR AVATAR BLOCK (mirip referensi: avatar besar + nama) ============ */
+
+.sidebar-avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 6px 8px 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.sidebar-avatar-block .avatar { width: 64px; height: 64px; font-size: 22px; margin-bottom: 10px; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+.sidebar-avatar-block .name { color: white; font-weight: 700; font-size: 14px; word-break: break-word; }
+.sidebar-avatar-block .role { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 2px; margin-bottom: 10px; }
+.sidebar-avatar-block .underline { width: 36px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
+
+/* ============ CALENDAR WIDGET ============ */
+
+.calendar-widget {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+}
+.calendar-header {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  color: white;
+  padding: 16px 20px;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: .04em;
+  font-size: 14px;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 16px 14px;
+}
+.calendar-dow { font-size: 10.5px; color: var(--muted); text-align: center; font-weight: 700; padding-bottom: 6px; }
+.calendar-day { text-align: center; font-size: 12.5px; padding: 7px 0; border-radius: 8px; color: var(--ink); }
+.calendar-day.other-month { color: var(--muted-2); opacity: .4; }
+.calendar-day.today { background: var(--accent-1); color: white; font-weight: 800; }
+
+.dash-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+@media (max-width: 760px) {
+  .dash-top-grid { grid-template-columns: 1fr; }
+}
+
+
 
 .avatar {
   border-radius: 50%;
